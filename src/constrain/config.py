@@ -147,7 +147,7 @@ class ConstrainConfig:
         )
 
         num_problems = int(
-            toml_data.get("experiment", {}).get("num_problems", 200)
+            toml_data.get("experiment", {}).get("num_problems", 20)
         )
 
         num_recursions = int(
