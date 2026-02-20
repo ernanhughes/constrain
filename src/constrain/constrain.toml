@@ -1,0 +1,30 @@
+[database]
+url = "sqlite:///experiment.db"
+
+[model]
+name = "mistral"
+embedding_model = "all-MiniLM-L6-v2"
+ollama_url = "http://localhost:11434/api/generate"
+
+[experiment]
+num_problems = 200
+num_recursions = 10
+initial_temperature = 1.1
+
+[tau]
+soft = 0.45
+medium = 0.63
+hard = 1.54
+
+[execution]
+run_baseline = true
+baseline_policy_id = 0
+
+run_experiment = true
+experiment_policy_id = 5
+
+run_analysis = true
+
+[paper]
+notes = "Recursive stability control experiment v0.1"
+track_git = true

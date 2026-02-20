@@ -1,0 +1,49 @@
+[project]
+name = "constrain"
+version = "0.1.0"
+description = "Constrain: Energy-based recursive stability control framework"
+authors = [
+    { name="Ernan Hughes", email="you@example.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+
+license = { text = "Apache License 2.0" }
+
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+dependencies = [
+    "sentence-transformers>=2.2.2",
+    "torch>=2.0.0",
+    "datasets<4",
+    "requests>=2.31.0",
+    "sqlalchemy>=2.0.0",
+    "pydantic>=2.5.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+    "ipython",
+]
+
+[project.scripts]
+constrain = "constrain.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["constrain*"]
+
+[tool.setuptools.package-data]
+constrain = ["*.toml"]
