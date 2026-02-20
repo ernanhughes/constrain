@@ -8,7 +8,7 @@
             "name": "constrain",
             "type": "debugpy",
             "request": "launch",
-            "python": "${workspaceFolder}\\venv\\Scripts\\python", // Linux/macOS
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
             "module": "constrain.main",
             "args": [
             ]

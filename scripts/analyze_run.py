@@ -1,5 +1,5 @@
 from constrain.data.memory import Memory
-from constrain.analysis.high_dimensional_analysis import HighDimensionalAnalyzer
+from constrain.analysis.stage3.escalation_signal_discovery import HighDimensionalAnalyzer
 from constrain.config import get_config
 
 memory = Memory(get_config().db_url)

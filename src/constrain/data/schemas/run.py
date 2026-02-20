@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -35,3 +34,4 @@ class RunDTO(BaseModel):
     tau_soft_calibrated: Optional[float] = None
     tau_medium_calibrated: Optional[float] = None
     tau_hard_calibrated: Optional[float] = None
+    seed: Optional[int] = None

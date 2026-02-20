@@ -1,6 +1,6 @@
 import warnings
 
-from constrain.analysis.compare_policies import compare_policies
+from constrain.analysis.stage2.policy_comparison import compare_policies
 
 from constrain.config import get_config
 from constrain.runner import run
@@ -17,7 +17,10 @@ def main():
     if config.run_experiment:
         run(policy_id=config.experiment_policy_id)
 
-    compare_policies([0, 4])
+    compare_policies(
+        policy_ids=[0, 4, 6],
+        seeds=[42, 43, 44]
+    )
 
 
 

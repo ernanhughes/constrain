@@ -1,38 +1,58 @@
 import uuid
 import time
 from datasets import load_dataset
-
+import random
+import numpy as np
 from constrain.data.memory import Memory
 from constrain.config import get_config
 from constrain.policy import apply_policy
 from constrain.model import call_model
-from constrain.energy import compute_energy
+from constrain.energy_computer import compute_energy
 
 from constrain.data.schemas.run import RunDTO
 from constrain.data.schemas.step import StepDTO
 from constrain.data.schemas.intervention import InterventionDTO
-from constrain.analysis.metrics_calculator import MetricsCalculator
+from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
 from tqdm.auto import tqdm
-from constrain.analysis.metrics_aggregator import MetricsAggregator
-from constrain.analysis.dashboard_exporter import DashboardExporter
-from constrain.analysis.signal_discovery_service import SignalDiscoveryService
+from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
+from constrain.analysis.visualization.dashboard_exporter import DashboardExporter
+from constrain.analysis.stage3.signal_discovery_service import SignalDiscoveryService
 
-def extract_number(text):
-    import re
-    nums = re.findall(r"-?\d+\.?\d*", text)
-    return float(nums[-1]) if nums else None
+import logging
+logger = logging.getLogger(__name__)
 
+def run(policy_id: int = 4, seed: int = 42) -> str:
+    """
+    Main execution pipeline.
 
-def run(policy_id: int = 4):
+    Returns:
+        run_id (str)
+    """
+
+    start_time = time.time()
+
+    # ==========================================================
+    # STAGE 0 — Initialization
+    # ==========================================================
+
+    logger.info("========== STAGE 0: INITIALIZATION ==========")
+
+    random.seed(seed)
+    np.random.seed(seed)
 
     cfg = get_config()
     memory = Memory()
 
-    # -------------------------------------------------
-    # Create Run
-    # -------------------------------------------------
-
     run_id = f"run_{uuid.uuid4().hex[:8]}"
+    logger.info(f"Run ID: {run_id}")
+    logger.info(f"Policy ID: {policy_id}")
+    logger.info(f"Seed: {seed}")
+
+    # ==========================================================
+    # STAGE 1 — Register Run
+    # ==========================================================
+
+    logger.info("========== STAGE 1: REGISTER RUN ==========")
 
     run_dto = RunDTO(
         run_id=run_id,
@@ -45,26 +65,48 @@ def run(policy_id: int = 4):
         tau_hard=cfg.tau_hard,
         policy_id=policy_id,
         task_type="gsm8k",
-        start_time=time.time(),
+        start_time=start_time,
         status="running",
         notes=cfg.notes,
+        seed=seed,
     )
 
     memory.runs.create(run_dto)
 
-    # -------------------------------------------------
-    # Dataset
-    # -------------------------------------------------
+    # ==========================================================
+    # STAGE 2 — Load Dataset
+    # ==========================================================
 
-    dataset = load_dataset("gsm8k", "main", split="test").select(
-        range(cfg.num_problems)
-    )
+    logger.info("========== STAGE 2: DATASET ==========")
 
-    # -------------------------------------------------
-    # Main Loop
-    # -------------------------------------------------
+    dataset = load_dataset("gsm8k", "main", split="test")
 
+    if cfg.fast_mode:
+        logger.info("⚡ FAST MODE ENABLED")
 
+        existing_prompts = set(memory.steps.get_distinct_prompts())
+        fast_examples = []
+        new_examples = []
+
+        for ex in dataset:
+            if ex["question"] in existing_prompts:
+                fast_examples.append(ex)
+            else:
+                new_examples.append(ex)
+
+        logger.info(
+            f"Dataset split → Cached: {len(fast_examples)}, New: {len(new_examples)}"
+        )
+
+        dataset = (fast_examples + new_examples)[: cfg.num_problems]
+    else:
+        dataset = dataset.shuffle(seed=0).select(range(cfg.num_problems))
+
+    # ==========================================================
+    # STAGE 3 — Main Execution Loop
+    # ==========================================================
+
+    logger.info("========== STAGE 3: EXECUTION LOOP ==========")
     pbar = tqdm(dataset, desc="Problems", total=cfg.num_problems)
 
     for pid, example in enumerate(pbar):
@@ -74,24 +116,40 @@ def run(policy_id: int = 4):
 
         state = prompt
         last_stable = prompt
+        reasoning_history = []
         temperature = cfg.initial_temperature
         prev_reasoning = None
 
         for iteration in range(cfg.num_recursions):
 
             try:
+                prompt_text = f"Solve step by step:\n\n{prompt}"
 
-                reasoning = call_model(
-                    f"Solve step by step:\n\n{state}",
-                    temperature,
-                )
+                # -----------------------------
+                # Model (with caching)
+                # -----------------------------
+
+                cached = memory.steps.get_reasoning_by_prompt(prompt, temperature)
+
+                if cached:
+                    reasoning = cached.reasoning_text
+                    logger.debug(f"[Cache hit] P{pid} I{iteration}")
+                else:
+                    reasoning = call_model(prompt_text, temperature)
+
+                # -----------------------------
+                # Energy
+                # -----------------------------
 
                 energy_metrics = compute_energy(
-                    memory,
-                    prompt,
-                    reasoning,
-                    prev_reasoning,
+                    prompt=prompt,
+                    current=reasoning,
+                    reasoning_history=reasoning_history,
                 )
+
+                # -----------------------------
+                # Policy
+                # -----------------------------
 
                 new_state, temperature, action = apply_policy(
                     policy_id,
@@ -106,10 +164,11 @@ def run(policy_id: int = 4):
 
                 if action == "ACCEPT":
                     last_stable = reasoning
+                    reasoning_history.append(reasoning)
 
-                # -------------------------------
-                # Compute All Metrics
-                # -------------------------------
+                # -----------------------------
+                # Metrics
+                # -----------------------------
 
                 all_metrics = MetricsCalculator.compute_all(
                     reasoning=reasoning,
@@ -118,9 +177,9 @@ def run(policy_id: int = 4):
                     cfg=cfg,
                 )
 
-                # -------------------------------
-                # Store Step
-                # -------------------------------
+                # -----------------------------
+                # Persist Step
+                # -----------------------------
 
                 step_dto = StepDTO(
                     run_id=run_id,
@@ -133,17 +192,17 @@ def run(policy_id: int = 4):
                     total_energy=energy_metrics["total_energy"],
                     grounding_energy=energy_metrics["grounding_energy"],
                     stability_energy=energy_metrics["stability_energy"],
+                    correctness=all_metrics.get("correctness"),
+                    accuracy=all_metrics.get("accuracy"),
                     temperature=temperature,
                     policy_action=action,
-                    phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[all_metrics["phase_value"]],
+                    phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[
+                        all_metrics["phase_value"]
+                    ],
                     timestamp=time.time(),
                 )
 
                 step_dto = memory.steps.create(step_dto)
-
-                # -------------------------------
-                # Store Metrics (ALL of them)
-                # -------------------------------
 
                 memory.metrics.bulk_from_dict(
                     step_id=step_dto.id,
@@ -151,40 +210,47 @@ def run(policy_id: int = 4):
                     metrics=all_metrics,
                 )
 
-                # -------------------------------
+                # -----------------------------
                 # Intervention
-                # -------------------------------
+                # -----------------------------
 
                 if action != "ACCEPT":
-
-                    intervention_dto = InterventionDTO(
-                        run_id=run_id,
-                        problem_id=pid,
-                        iteration=iteration,
-                        threshold="dynamic",
-                        rationale=action,
-                        reverted_to=iteration - 1,
-                        new_temperature=temperature,
-                        timestamp=time.time(),
+                    memory.interventions.create(
+                        InterventionDTO(
+                            run_id=run_id,
+                            problem_id=pid,
+                            iteration=iteration,
+                            threshold="dynamic",
+                            rationale=action,
+                            reverted_to=iteration - 1,
+                            new_temperature=temperature,
+                            timestamp=time.time(),
+                        )
                     )
 
-                    memory.interventions.create(intervention_dto)
-
-                prev_reasoning = reasoning
-                state = new_state
-
             except Exception as e:
-                print(f"⚠ Crash at problem {pid}, iter {iteration}: {e}")
+                print("Error during execution loop:", e)
+                logger.exception(
+                    f"Crash at problem {pid}, iteration {iteration}: {e}"
+                )
                 break
 
+    # ==========================================================
+    # STAGE 4 — Aggregation
+    # ==========================================================
 
-    df = MetricsAggregator.build_run_dataframe(memory, run_id)
-    print(df.head())
-    MetricsAggregator.dump_run_csv(memory, run_id)
+    logger.info("========== STAGE 4: AGGREGATION ==========")
 
-    # -------------------------------------------------
-    # Finish Run
-    # -------------------------------------------------
+    try:
+        MetricsAggregator.dump_run_csv(memory, run_id)
+    except Exception as e:
+        logger.exception(f"Aggregation failed: {e}")
+
+    # ==========================================================
+    # STAGE 5 — Finalize Run
+    # ==========================================================
+
+    logger.info("========== STAGE 5: FINALIZE ==========")
 
     memory.runs.update(
         run_id,
@@ -194,22 +260,28 @@ def run(policy_id: int = 4):
         },
     )
 
-    print(f"✅ Run complete: {run_id}")
+    # ==========================================================
+    # STAGE 6 — Signal Discovery
+    # ==========================================================
 
-    # -------------------------------------------------
-    # Signal Discovery (Post-Run Phase)
-    # -------------------------------------------------
+    logger.info("========== STAGE 6: SIGNAL DISCOVERY ==========")
 
     try:
-        print("🔍 Running signal discovery...")
-
-        service = SignalDiscoveryService(memory)
-        results = service.analyze_and_persist(run_id)
-
-        DashboardExporter.export_json(results, run_id)
-        DashboardExporter.export_html(results, run_id)
-
-        print("📊 Signal discovery complete")
+        # ✅ Check run completed successfully
+        run_info = memory.runs.get_by_id(run_id)
+        if run_info.status != "completed":
+            logger.warning(f"⚠️ Skipping signal discovery: run status = {run_info.status}")
+        else:
+            service = SignalDiscoveryService(memory)
+            results = service.analyze_and_persist(run_id)
+            DashboardExporter.export_json(results, run_id)
+            DashboardExporter.export_html(results, run_id)
+            logger.info("Signal discovery complete")
 
     except Exception as e:
-        print(f"⚠ Signal discovery failed: {e}")
+        logger.exception(f"Signal discovery failed: {e}")
+
+    elapsed = time.time() - start_time
+    logger.info(f"Run completed in {elapsed:.2f}s")
+
+    return run_id

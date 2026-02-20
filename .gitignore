@@ -1,4 +1,8 @@
+dashboard/
+model_registry/
 *.db
+*.db-shm
+*.db-wal
 *.zip
 *.codebase.md
 *.csv

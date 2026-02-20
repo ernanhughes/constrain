@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 
 from sqlalchemy import and_
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func
 
 from constrain.data.orm.step import StepORM
 from constrain.data.schemas.step import StepDTO
@@ -101,4 +102,26 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
 
             return [StepDTO.model_validate(r) for r in rows]
 
+        return self._run(op)
+
+    
+    def get_reasoning_by_prompt(self, prompt_text: str, temperature: float):
+        def op(s):
+            return (
+                s.query(StepORM)
+                .filter(
+                    StepORM.prompt_text == prompt_text
+                )
+                .order_by(func.random())
+                .first()
+            )
+        return self._run(op)
+
+
+    def get_distinct_prompts(self, limit: int | None = None):
+        def op(s):
+            q = s.query(self.orm_model.prompt_text).distinct()
+            if limit:
+                q = q.limit(limit)
+            return [row[0] for row in q.all()]
         return self._run(op)

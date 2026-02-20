@@ -55,6 +55,7 @@ class Memory(MemoryProtocol):
 
         # Engine placeholders (explicit, not generic)
         self._embedding_service = None
+        self._embed_cache: dict[tuple[str, str, str], np.ndarray] = {}
 
     def _register_core_stores(self):
         """Register all core Verity stores with standardized names."""
@@ -116,41 +117,72 @@ class Memory(MemoryProtocol):
 
     def embed(self, texts: list[str]) -> list[np.ndarray]:
         """
-        Public embedding API.
-        Handles config hashing + provider resolution internally.
+        Public embedding API with fast in-memory cache.
+        Falls back to DB store if not cached.
         """
 
         config = get_config()
-
         provider = config.provider
         model = config.embedding_model
 
+        results: list[np.ndarray] = []
+        missing_texts: list[str] = []
+        missing_indices: list[int] = []
 
-        # 1️⃣ Check existing
-        vecs, missing_idx = self.embeddings.get(
-            texts,
-            model=model,
-            provider=provider,        )
+        # -------------------------------------------------
+        # 1️⃣ Check in-memory cache first
+        # -------------------------------------------------
+        for i, text in enumerate(texts):
+            key = (text, model, provider)
+            if key in self._embed_cache:
+                results.append(self._embed_cache[key])
+            else:
+                results.append(None)  # placeholder
+                missing_texts.append(text)
+                missing_indices.append(i)
 
-        # 2️⃣ Generate missing
-        if missing_idx:
-            to_generate = [texts[i] for i in missing_idx]
-
-            service = self.embedding_service
-            generated = service.embed(to_generate)
-
-            self.embeddings.put(
-                texts=to_generate,
-                vecs=np.array(generated),
+        # -------------------------------------------------
+        # 2️⃣ If any missing, query DB store
+        # -------------------------------------------------
+        if missing_texts:
+            vecs, still_missing_idx = self.embeddings.get(
+                missing_texts,
                 model=model,
                 provider=provider,
             )
 
-            # Re-fetch all
-            vecs, _ = self.embeddings.get(
-                texts,
-                model=model,
-                provider=provider,
-            )
+            # -------------------------------------------------
+            # 3️⃣ Generate embeddings for truly missing
+            # -------------------------------------------------
+            if still_missing_idx:
+                to_generate = [missing_texts[i] for i in still_missing_idx]
 
-        return vecs
+                service = self.embedding_service
+                generated = service.embed(to_generate)
+
+                self.embeddings.put(
+                    texts=to_generate,
+                    vecs=np.array(generated),
+                    model=model,
+                    provider=provider,
+                )
+
+                # Re-fetch
+                vecs, _ = self.embeddings.get(
+                    missing_texts,
+                    model=model,
+                    provider=provider,
+                )
+
+            # -------------------------------------------------
+            # 4️⃣ Fill results + update in-memory cache
+            # -------------------------------------------------
+            for local_i, vec in enumerate(vecs):
+                global_i = missing_indices[local_i]
+                key = (texts[global_i], model, provider)
+
+                arr = np.array(vec, dtype=np.float32)
+                self._embed_cache[key] = arr
+                results[global_i] = arr
+
+        return results

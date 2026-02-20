@@ -13,7 +13,7 @@ class MetricORM(Base):
 
     stage = Column(Text, nullable=False)
     metric_name = Column(Text, nullable=False)
-    metric_value = Column(Float, nullable=False)
+    metric_value = Column(Float, nullable=True)
 
     created_at = Column(Float, nullable=False)
 

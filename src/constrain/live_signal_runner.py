@@ -7,8 +7,8 @@ from constrain.data.memory import Memory
 from constrain.config import get_config
 from constrain.policy import apply_policy
 from constrain.model import call_model
-from constrain.energy import compute_energy
-from constrain.analysis.rolling_signal_monitor import RollingSignalMonitor
+from constrain.energy_computer import compute_energy
+from constrain.analysis.stage3.rolling_monitor import RollingSignalMonitor
 
 from constrain.data.schemas.run import RunDTO
 from constrain.data.schemas.step import StepDTO

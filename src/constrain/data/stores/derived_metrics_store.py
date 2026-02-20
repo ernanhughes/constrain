@@ -118,7 +118,7 @@ class DerivedMetricsStore(BaseSQLAlchemyStore[DerivedMetricsDTO]):
                 s.query(func.count(DerivedMetricsORM.id))
                 .filter(
                     DerivedMetricsORM.run_id == run_id,
-                    DerivedMetricsORM.collapse_detected == True,
+                    DerivedMetricsORM.collapse_detected,
                 )
                 .scalar()
                 or 0
@@ -138,7 +138,7 @@ class DerivedMetricsStore(BaseSQLAlchemyStore[DerivedMetricsDTO]):
                 s.query(func.count(DerivedMetricsORM.id))
                 .filter(
                     DerivedMetricsORM.run_id == run_id,
-                    DerivedMetricsORM.collapse_detected == True,
+                    DerivedMetricsORM.collapse_detected,
                 )
                 .scalar()
                 or 0
@@ -151,7 +151,7 @@ class DerivedMetricsStore(BaseSQLAlchemyStore[DerivedMetricsDTO]):
                 s.query(func.count(DerivedMetricsORM.id))
                 .filter(
                     DerivedMetricsORM.run_id == run_id,
-                    DerivedMetricsORM.recovered == True,
+                    DerivedMetricsORM.recovered,
                 )
                 .scalar()
                 or 0
@@ -172,7 +172,7 @@ class DerivedMetricsStore(BaseSQLAlchemyStore[DerivedMetricsDTO]):
                 .filter(DerivedMetricsORM.run_id == run_id)
                 .scalar()
             )
-            return float(val or 0.0)
+            return float(val)
 
         return self._run(op)
 

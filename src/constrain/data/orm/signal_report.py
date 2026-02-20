@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Float, Integer, LargeBinary, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Float, Integer, Text
 
 from constrain.data.base import Base
 

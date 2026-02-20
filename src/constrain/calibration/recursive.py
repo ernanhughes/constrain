@@ -70,9 +70,9 @@ class RecursiveCalibrator:
         if len(energies) < 50:
             raise ValueError("Not enough samples")
 
-        base_soft = np.percentile(energies, 60)
-        base_medium = np.percentile(energies, 80)
-        base_hard = np.percentile(energies, 95)
+        base_soft = float(np.percentile(energies, 60))
+        base_medium = float(np.percentile(energies, 80))
+        base_hard = float(np.percentile(energies, 95))
 
         # Look at latest signal report
         report = memory.signal_reports.get_one(

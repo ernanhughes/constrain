@@ -43,17 +43,37 @@ class MetricStore(BaseSQLAlchemyStore[MetricDTO]):
         def op(s):
             objs = []
             for name, value in metrics.items():
-                objs.append(
-                    MetricORM(
-                        step_id=step_id,
-                        stage=stage,
-                        metric_name=name,
-                        metric_value=float(value),
-                        created_at=now,
+                if value:
+                    objs.append(
+                        MetricORM(
+                            step_id=step_id,
+                            stage=stage,
+                            metric_name=name,
+                            metric_value=value,
+                            created_at=now,
+                        )
                     )
-                )
             s.add_all(objs)
             s.flush()
             return len(objs)
+
+        return self._run(op)
+
+    def get_by_step(self, step_id: int) -> Dict[str, float]:
+        def op(s):
+            rows = s.query(MetricORM).filter_by(step_id=step_id).all()
+            return {row.metric_name: row.metric_value for row in rows}
+
+        return self._run(op)
+    
+    def get_by_steps(self, step_ids: list[int]) -> Dict[int, Dict[str, float]]:
+        def op(s):
+            rows = s.query(MetricORM).filter(MetricORM.step_id.in_(step_ids)).all()
+            result = {}
+            for row in rows:
+                if row.step_id not in result:
+                    result[row.step_id] = {}
+                result[row.step_id][row.metric_name] = row.metric_value
+            return result
 
         return self._run(op)

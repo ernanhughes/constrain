@@ -37,3 +37,4 @@ class RunORM(Base):
     tau_soft_calibrated = Column(Float, nullable=True)
     tau_medium_calibrated = Column(Float, nullable=True)
     tau_hard_calibrated = Column(Float, nullable=True)
+    seed = Column(Integer, nullable=True)

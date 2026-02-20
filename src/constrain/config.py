@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -71,7 +71,9 @@ class ConstrainConfig:
     db_url: str
     model_name: str
     embedding_model: str
+    embedding_db: str
     ollama_url: str
+
 
     # Experiment
     num_problems: int
@@ -90,6 +92,8 @@ class ConstrainConfig:
     run_experiment: bool
     experiment_policy_id: int
     run_analysis: bool
+
+    fast_mode: bool = True  # If True  (e.g., reuse prompts you ahve already seen in the memory, skip energy computation, etc.)
 
     policy_mode: str = "recursive"  # static | recursive | adaptive | dynamic
     provider: str = "ollama"
@@ -130,6 +134,12 @@ class ConstrainConfig:
             or "all-MiniLM-L6-v2"
         )
 
+        embedding_db = (
+            toml_data.get("model", {}).get("embedding_db")
+            or os.getenv("EMBEDDING_DB")
+            or "embedding.db"
+        )
+
         ollama_url = (
             toml_data.get("model", {}).get("ollama_url")
             or os.getenv("OLLAMA_URL")
@@ -137,11 +147,11 @@ class ConstrainConfig:
         )
 
         num_problems = int(
-            toml_data.get("experiment", {}).get("num_problems", 2)
+            toml_data.get("experiment", {}).get("num_problems", 200)
         )
 
         num_recursions = int(
-            toml_data.get("experiment", {}).get("num_recursions", 10)
+            toml_data.get("experiment", {}).get("num_recursions", 6)
         )
 
         initial_temperature = float(
@@ -185,6 +195,10 @@ class ConstrainConfig:
             toml_data.get("execution", {}).get("run_analysis", True)
         )
 
+        fast_mode = bool(
+            toml_data.get("execution", {}).get("fast_mode", True)
+        )
+
 
         notes = toml_data.get("paper", {}).get("notes")
 
@@ -196,6 +210,7 @@ class ConstrainConfig:
             db_url=db_url,
             model_name=model_name,
             embedding_model=embedding_model,
+            embedding_db=embedding_db,
             provider=provider,
             ollama_url=ollama_url,
             num_problems=num_problems,
@@ -211,6 +226,7 @@ class ConstrainConfig:
             experiment_policy_id=experiment_policy_id,
             run_analysis=run_analysis,
             notes=notes,
+            fast_mode=fast_mode,
             git_commit=git_meta.get("git_commit"),
             git_branch=git_meta.get("git_branch"),
             git_dirty=git_meta.get("git_dirty"),
@@ -231,6 +247,7 @@ class ConstrainConfig:
             "model_name": self.model_name,
             "provider": self.provider,
             "embedding_model": self.embedding_model,
+            "embedding_db": self.embedding_db,
             "num_problems": self.num_problems,
             "num_recursions": self.num_recursions,
             "initial_temperature": self.initial_temperature,
@@ -243,6 +260,7 @@ class ConstrainConfig:
             "experiment_policy_id": self.experiment_policy_id,
             "run_analysis": self.run_analysis,
             "notes": self.notes,
+            "fast_mode": self.fast_mode,
             "git_commit": self.git_commit,
             "git_branch": self.git_branch,
             "git_dirty": bool(self.git_dirty),

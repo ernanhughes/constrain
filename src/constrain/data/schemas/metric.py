@@ -13,6 +13,6 @@ class MetricDTO(BaseModel):
 
     stage: str
     metric_name: str
-    metric_value: float
+    metric_value: Optional[float] = None
 
     created_at: float

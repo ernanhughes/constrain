@@ -1,0 +1,141 @@
+from __future__ import annotations
+import pandas as pd
+
+from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
+
+
+class ApplicationEvaluator:
+
+    def __init__(self, memory):
+        self.memory = memory
+
+    # ============================================================
+    # Public API
+    # ============================================================
+
+    def evaluate_run(self, run_id: str):
+
+        df = self._build_problem_dataframe(run_id)
+
+        if df.empty:
+            raise ValueError("No problem data reconstructed.")
+
+        summary = {
+            "run_id": run_id,
+            "accuracy": float(df["final_correct"].mean()),
+            "intervention_rate": float(df["any_intervention"].mean()),
+            "avg_energy": float(df["avg_energy"].mean()),
+            "avg_recursions": float(df["num_iterations"].mean()),
+            "intervention_help_rate": float(df["intervention_helped"].mean()),
+            "intervention_harm_rate": float(df["intervention_harmed"].mean()),
+            "num_problems": int(len(df)),
+        }
+
+        return summary, df
+
+    # ============================================================
+    # Core Reconstruction Logic
+    # ============================================================
+
+    def _build_problem_dataframe(self, run_id: str):
+
+        steps_df = self._load_steps(run_id)
+
+        if "problem_id" not in steps_df.columns:
+            raise ValueError("problem_id missing from dataframe.")
+
+        problem_rows = []
+
+        for problem_id, group in steps_df.groupby("problem_id"):
+
+            group = group.sort_values("iteration")
+
+            final_row = group.iloc[-1]
+
+            final_correct = self._is_correct(final_row)
+
+            any_intervention = (group["policy_action"] != "ACCEPT").any()
+            num_interventions = int(
+                (group["policy_action"] != "ACCEPT").sum()
+            )
+
+            avg_energy = float(group["total_energy"].mean())
+            max_energy = float(group["total_energy"].max())
+
+            num_iterations = int(group["iteration"].max() + 1)
+
+            # ----------------------------------------------------
+            # Intervention Effectiveness
+            # ----------------------------------------------------
+
+            intervention_helped = False
+            intervention_harmed = False
+
+            for i in range(1, len(group)):
+
+                prev = group.iloc[i - 1]
+                curr = group.iloc[i]
+
+                if curr["policy_action"] != "ACCEPT":
+
+                    before_correct = self._is_correct(prev)
+                    after_correct = self._is_correct(curr)
+
+                    if not before_correct and after_correct:
+                        intervention_helped = True
+
+                    if before_correct and not after_correct:
+                        intervention_harmed = True
+
+            problem_rows.append(
+                {
+                    "problem_id": problem_id,
+                    "final_correct": final_correct,
+                    "any_intervention": bool(any_intervention),
+                    "num_interventions": num_interventions,
+                    "avg_energy": avg_energy,
+                    "max_energy": max_energy,
+                    "num_iterations": num_iterations,
+                    "intervention_helped": intervention_helped,
+                    "intervention_harmed": intervention_harmed,
+                }
+            )
+
+        return pd.DataFrame(problem_rows)
+
+    # ============================================================
+    # Helpers
+    # ============================================================
+
+    def _load_steps(self, run_id: str):
+
+        # IMPORTANT: use aggregator (consistent schema)
+        df = MetricsAggregator.build_run_dataframe(
+            self.memory,
+            run_id,
+        )
+
+        required = [
+            "problem_id",
+            "iteration",
+            "policy_action",
+            "total_energy",
+            "extracted_answer",
+            "gold_answer",
+        ]
+
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+
+        return df
+
+    def _is_correct(self, row):
+
+        extracted = str(row.get("extracted_answer", "")).strip()
+        gold = str(row.get("gold_answer", "")).strip()
+
+        if extracted == "" or gold == "":
+            return False
+
+        return extracted == gold

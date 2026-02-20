@@ -69,8 +69,15 @@ def apply_policy(policy_id, energy, reasoning, last_stable, prompt, temperature,
         if energy > tau_medium:
             return prompt, temperature * 0.85, "RESET"
         return last_stable, temperature * 0.85, "REVERT_STABILIZE"
-
+    # simple random for testing
     if policy_id == 6:
+        import random
+        if random.random() < 0.3:
+            return last_stable, temperature, "REVERT_RANDOM"
+        return reasoning, temperature, "ACCEPT"
+
+    # more in depth random policy for testing
+    if policy_id == 7:
         import random
 
         # Only consider intervention if above soft threshold
