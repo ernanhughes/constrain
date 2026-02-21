@@ -133,7 +133,7 @@ class SignalDiscoveryService:
         
         # 2. ✅ Skip persistence if run was skipped due to insufficient data
         if results.get("skipped"):
-            logger.info(f"⏭️ Skipping persistence for {run_id}: {results.get('reason')}")
+            logger.debug(f"⏭️ Skipping persistence for {run_id}: {results.get('reason')}")
             return results
         
         # 3. ✅ Safe access with defaults for robustness
@@ -156,7 +156,7 @@ class SignalDiscoveryService:
         # 5. ✅ Persist to database
         try:
             self.memory.signal_reports.create(dto)
-            logger.info(f"✅ Signal report persisted for {run_id}")
+            logger.debug(f"✅ Signal report persisted for {run_id}")
         except Exception as e:
             logger.exception(f"⚠️ Failed to persist signal report for {run_id}: {e}")
             # Don't crash the pipeline — return results anyway
@@ -220,11 +220,16 @@ class SignalDiscoveryService:
         y = df[target_col]
 
         for train_idx, test_idx in tscv.split(df):
+
             X_train = X.iloc[train_idx]
             y_train = y.iloc[train_idx]
 
             X_test = X.iloc[test_idx]
             y_test = y.iloc[test_idx]
+
+            # 🔥 Skip invalid folds
+            if len(set(y_train)) < 2:
+                continue
 
             model = xgb.XGBClassifier(
                 n_estimators=150,
@@ -248,6 +253,10 @@ class SignalDiscoveryService:
             models.append(model)
 
         avg_auc = float(np.nanmean(aucs))
+
+        if not models:
+            logger.warning("⚠️ All folds skipped — no valid training splits")
+            return None, float("nan"), []
 
         return models[-1], avg_auc, aucs
 

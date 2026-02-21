@@ -9,6 +9,7 @@ Features:
 - SQLite-safe
 - Immutable config object
 - Singleton access
+- Automatic logging setup on first use
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -23,24 +25,55 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------
+# LOGGING SETUP (called once when config is first loaded)
+# ---------------------------------------------------------
+
+def _ensure_logging():
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+        root.setLevel(logging.INFO)
+        # Also set our logger to at least INFO
+        logger.setLevel(logging.INFO)
+
+        # --- ADD THESE LINES ---
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("transformers").setLevel(logging.WARNING)
+        logging.getLogger("datasets").setLevel(logging.WARNING)
+        # -----------------------
+
+        logger.debug("Default logging configured (no prior handlers)")
+# ---------------------------------------------------------
 # TOML LOADER
 # ---------------------------------------------------------
 
 def _read_toml(path: Path) -> dict:
     if not path.exists():
+        logger.debug("TOML file %s not found, using empty config", path)
         return {}
 
     try:
         import tomllib
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+        logger.debug("Loaded TOML using tomllib from %s", path)
+        return data
     except ImportError:
         try:
             import tomli
             with open(path, "rb") as f:
-                return tomli.load(f)
-        except Exception:
+                data = tomli.load(f)
+            logger.debug("Loaded TOML using tomli from %s", path)
+            return data
+        except Exception as e:
+            logger.warning("Failed to parse TOML %s: %s", path, e)
             return {}
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load TOML %s: %s", path, e)
         return {}
 
 # ---------------------------------------------------------
@@ -54,10 +87,15 @@ def _get_git_metadata() -> Dict[str, Optional[str]]:
         except Exception:
             return None
 
+    commit = run(["git", "rev-parse", "HEAD"])
+    branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+    dirty = run(["git", "status", "--porcelain"])
+
+    logger.debug("Git metadata: commit=%s, branch=%s, dirty=%s", commit, branch, bool(dirty))
     return {
-        "git_commit": run(["git", "rev-parse", "HEAD"]),
-        "git_branch": run(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
-        "git_dirty": run(["git", "status", "--porcelain"]),
+        "git_commit": commit,
+        "git_branch": branch,
+        "git_dirty": dirty,
     }
 
 # ---------------------------------------------------------
@@ -74,12 +112,10 @@ class ConstrainConfig:
     embedding_db: str
     ollama_url: str
 
-
     # Experiment
     num_problems: int
     num_recursions: int
     initial_temperature: float
-
 
     # Thresholds
     tau_soft: float
@@ -93,9 +129,8 @@ class ConstrainConfig:
     experiment_policy_id: int
     run_analysis: bool
 
-    fast_mode: bool = True  # If True  (e.g., reuse prompts you ahve already seen in the memory, skip energy computation, etc.)
-
-    policy_mode: str = "recursive"  # static | recursive | adaptive | dynamic
+    fast_mode: bool = True
+    policy_mode: str = "recursive"
     provider: str = "ollama"
 
     # Paper metadata
@@ -104,107 +139,127 @@ class ConstrainConfig:
     git_branch: Optional[str] = None
     git_dirty: Optional[str] = None
 
-
     @classmethod
     def from_env(cls) -> "ConstrainConfig":
+        # Ensure logging is set up before we start logging
+        _ensure_logging()
 
+        logger.debug("Loading configuration from environment and TOML")
         toml_data = _read_toml(Path("constrain.toml"))
 
-        db_url = (
-            toml_data.get("database", {}).get("url")
-            or os.getenv("DATABASE_URL")
-            or "sqlite:///experiment.db"
+        # Helper to log source
+        def get_value(key, toml_section=None, env_var=None, default=None):
+            value = None
+            source = "default"
+            if toml_section and toml_section in toml_data:
+                val = toml_data[toml_section].get(key)
+                if val is not None:
+                    value = val
+                    source = "TOML"
+            if env_var and value is None:
+                env_val = os.getenv(env_var)
+                if env_val is not None:
+                    value = env_val
+                    source = "ENV"
+            if value is None:
+                value = default
+                source = "default"
+            logger.debug("Config %s = %s (source: %s)", key, value, source)
+            return value
+
+        # Core
+        db_url = get_value(
+            "url", toml_section="database", env_var="DATABASE_URL",
+            default="sqlite:///experiment.db"
+        )
+        provider = get_value(
+            "provider", toml_section="model", env_var="MODEL_PROVIDER",
+            default="ollama"
+        )
+        model_name = get_value(
+            "name", toml_section="model", env_var="MODEL_NAME",
+            default="mistral"
+        )
+        embedding_model = get_value(
+            "embedding_model", toml_section="model", env_var="EMBEDDING_MODEL_NAME",
+            default="all-MiniLM-L6-v2"
+        )
+        embedding_db = get_value(
+            "embedding_db", toml_section="model", env_var="EMBEDDING_DB",
+            default="embedding.db"
+        )
+        ollama_url = get_value(
+            "ollama_url", toml_section="model", env_var="OLLAMA_URL",
+            default="http://localhost:11434/api/generate"
         )
 
-        provider = (
-            toml_data.get("model", {}).get("provider")
-            or os.getenv("MODEL_PROVIDER")
-            or "ollama"
+        # Experiment
+        num_problems = int(get_value(
+            "num_problems", toml_section="experiment", env_var=None,
+            default=20
+        ))
+        num_recursions = int(get_value(
+            "num_recursions", toml_section="experiment", env_var=None,
+            default=6
+        ))
+        initial_temperature = float(get_value(
+            "initial_temperature", toml_section="experiment", env_var=None,
+            default=1.1
+        ))
+        policy_mode = get_value(
+            "policy_mode", toml_section="experiment", env_var=None,
+            default="recursive"
         )
 
-        model_name = (
-            toml_data.get("model", {}).get("name")
-            or os.getenv("MODEL_NAME")
-            or "mistral"
-        )
+        # Thresholds
+        tau_soft = float(get_value(
+            "soft", toml_section="tau", env_var=None,
+            default=0.30
+        ))
+        tau_medium = float(get_value(
+            "medium", toml_section="tau", env_var=None,
+            default=0.32
+        ))
+        tau_hard = float(get_value(
+            "hard", toml_section="tau", env_var=None,
+            default=0.36
+        ))
 
-        embedding_model = (
-            toml_data.get("model", {}).get("embedding_model")
-            or os.getenv("EMBEDDING_MODEL_NAME")
-            or "all-MiniLM-L6-v2"
-        )
-
-        embedding_db = (
-            toml_data.get("model", {}).get("embedding_db")
-            or os.getenv("EMBEDDING_DB")
-            or "embedding.db"
-        )
-
-        ollama_url = (
-            toml_data.get("model", {}).get("ollama_url")
-            or os.getenv("OLLAMA_URL")
-            or "http://localhost:11434/api/generate"
-        )
-
-        num_problems = int(
-            toml_data.get("experiment", {}).get("num_problems", 20)
-        )
-
-        num_recursions = int(
-            toml_data.get("experiment", {}).get("num_recursions", 6)
-        )
-
-        initial_temperature = float(
-            toml_data.get("experiment", {}).get("initial_temperature", 1.1)
-        )
-
-        policy_mode = toml_data.get("experiment", {}).get("policy_mode", "recursive")
-
-        tau_soft = float(
-            toml_data.get("tau", {}).get("soft", 0.30)
-        )
-
-        tau_medium = float(
-            toml_data.get("tau", {}).get("medium", 0.32)
-        )
-
-        tau_hard = float(
-            toml_data.get("tau", {}).get("hard", 0.36)
-        )
-        # ---------------------------------------------------------
         # Execution Controls
-        # ---------------------------------------------------------
+        run_baseline = bool(get_value(
+            "run_baseline", toml_section="execution", env_var=None,
+            default=True
+        ))
+        baseline_policy_id = int(get_value(
+            "baseline_policy_id", toml_section="execution", env_var=None,
+            default=0
+        ))
+        run_experiment = bool(get_value(
+            "run_experiment", toml_section="execution", env_var=None,
+            default=True
+        ))
+        experiment_policy_id = int(get_value(
+            "experiment_policy_id", toml_section="execution", env_var=None,
+            default=5
+        ))
+        run_analysis = bool(get_value(
+            "run_analysis", toml_section="execution", env_var=None,
+            default=True
+        ))
+        fast_mode = bool(get_value(
+            "fast_mode", toml_section="execution", env_var=None,
+            default=True
+        ))
 
-        run_baseline = bool(
-            toml_data.get("execution", {}).get("run_baseline", True)
-        )
-
-        baseline_policy_id = int(
-            toml_data.get("execution", {}).get("baseline_policy_id", 0)
-        )
-
-        run_experiment = bool(
-            toml_data.get("execution", {}).get("run_experiment", True)
-        )
-
-        experiment_policy_id = int(
-            toml_data.get("execution", {}).get("experiment_policy_id", 5)
-        )
-
-        run_analysis = bool(
-            toml_data.get("execution", {}).get("run_analysis", True)
-        )
-
-        fast_mode = bool(
-            toml_data.get("execution", {}).get("fast_mode", True)
-        )
-
-
+        # Paper notes
         notes = toml_data.get("paper", {}).get("notes")
 
+        # Git metadata
         git_meta = {}
         if toml_data.get("paper", {}).get("track_git", True):
             git_meta = _get_git_metadata()
+
+        logger.debug("Configuration loaded successfully")
 
         return cls(
             db_url=db_url,
@@ -279,6 +334,6 @@ def get_config() -> ConstrainConfig:
     if _config_instance is None:
         _config_instance = ConstrainConfig.from_env()
         _config_instance.ensure_sqlite_dir()
-        logger.info(f"Loaded Constrain config: {_config_instance.to_dict()}")
+        logger.debug(f"Constrain config loaded: {_config_instance.to_dict()}")
 
     return _config_instance

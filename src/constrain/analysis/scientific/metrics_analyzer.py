@@ -380,7 +380,7 @@ class MetricsAnalyzer:
         Generate publication-ready analysis report.
         Combines all analyses into single coherent narrative with statistical rigor.
         """
-        logger.info(f"Generating full analysis report for run {run_id}")
+        logger.debug(f"Generating full analysis report for run {run_id}")
         
         # 1. Per-problem drift analysis
         drift_df = self.compute_per_problem_drift(run_id)
@@ -427,7 +427,7 @@ class MetricsAnalyzer:
             import json
             with open(output_path, 'w') as f:
                 json.dump(report, f, indent=2)
-            logger.info(f"Report saved to {output_path}")
+            logger.debug(f"Report saved to {output_path}")
         
         return report
     

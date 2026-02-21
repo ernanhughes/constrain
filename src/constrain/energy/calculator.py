@@ -59,7 +59,7 @@ class EnergyCalculator:
         claim_vec_cache = {}
 
         policy_names = [p.strip() for p in policies.split(",") if p.strip()]
-        logger.info(f"Building policies: {policy_names}")
+        logger.debug(f"Building policies: {policy_names}")
 
     # -----------------------------------------------------
     # Utilities
@@ -70,7 +70,7 @@ class EnergyCalculator:
         Efficient batched embedding with progress.
         """
 
-        logger.info("Preparing embeddings...")
+        logger.debug("Preparing embeddings...")
 
         # ---------------------------
         # 1️⃣ Claims
@@ -83,7 +83,7 @@ class EnergyCalculator:
         ]
 
         if claims_to_embed:
-            logger.info(f"Embedding {len(claims_to_embed)} claims...")
+            logger.debug(f"Embedding {len(claims_to_embed)} claims...")
             claim_vecs = embedder.embed(claims_to_embed)
 
             idx = 0
@@ -100,7 +100,7 @@ class EnergyCalculator:
             if "evidence_vecs" not in s or s["evidence_vecs"] is None:
                 s["evidence_vecs"] = embedder.embed(s["evidence"])
 
-        logger.info("All embeddings prepared.")
+        logger.debug("All embeddings prepared.")
 
     def _write_policy_rows(self, path: Path, rows: list[dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

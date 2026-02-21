@@ -99,7 +99,7 @@ class AdaptiveCalibrator:
         tau_pr = float(np.percentile(pos_pr_cond, 90))
         tau_sensitivity = float(np.percentile(pos_sens_cond, 90))
 
-        logger.info(
+        logger.debug(
             f"[Calibration] PR τ @ {pos_coverage}% = {tau_pr:.4f}, "
             f"Sensitivity τ @ {pos_coverage}% = {tau_sensitivity:.4f}"
         )
@@ -127,7 +127,7 @@ class AdaptiveCalibrator:
         tau_by_percentile = {p: float(np.percentile(neg_energies_hard, p)) for p in percentiles}
         separation_delta = np.mean(neg_energies_hard) - np.mean(pos_energies) if pos_energies and neg_energies_hard else 0.0
 
-        logger.info(
+        logger.debug(
             f"[Calibration] mean_deranged={np.mean(neg_energies_deranged):.4f} "
             f"mean_hard={np.mean(neg_energies_hard):.4f} "
             f"gap={hard_negative_gap:.4f} "
