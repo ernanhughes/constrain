@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from typing import Optional
 import pandas as pd
-from sklearn import logger
 from sklearn.metrics import roc_auc_score
 import numpy as np
-
+from constrain.config import get_config
 from constrain.data.memory import Memory
-import time
 
 
 class MetricsAggregator:
@@ -107,7 +105,7 @@ class MetricsAggregator:
         df = MetricsAggregator.build_run_dataframe(memory, run_id)
 
         if path is None:
-            path = f"run_{run_id}_metrics.csv"
+            path = f"{get_config().base_dir}/run_{run_id}_metrics.csv"
 
         df.to_csv(path, index=False)
         print(f"✅ Data written to {path}")

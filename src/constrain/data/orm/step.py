@@ -30,6 +30,8 @@ class StepORM(Base):
     policy_action = Column(Text, nullable=False)
     phase = Column(Text, nullable=False)
 
+    collapse_probability = Column(Float, nullable=True)
+
     timestamp = Column(Float, nullable=False)
 
     run = relationship("RunORM")

@@ -2,7 +2,7 @@ import pandas as pd
 from constrain.runner import run
 from constrain.analysis.stage2.application_evaluator import ApplicationEvaluator
 from constrain.data.memory import Memory
-
+from constrain.config import get_config
 
 import numpy as np
 
@@ -44,7 +44,7 @@ def compare_policies(policy_ids, seeds=(42, 43, 44)):
 
             run_id = run(policy_id=pid, seed=seed)
 
-            memory = Memory()
+            memory = Memory(get_config().db_url)
             evaluator = ApplicationEvaluator(memory)
 
             summary, problem_df = evaluator.evaluate_run(run_id)
@@ -54,6 +54,21 @@ def compare_policies(policy_ids, seeds=(42, 43, 44)):
 
             # Store per-problem correctness for bootstrap
             summary["_per_problem_correct"] = problem_df["final_correct"].values
+
+            steps = memory.steps.get_by_run(run_id)
+    
+
+            steps_df = pd.DataFrame([s.model_dump() for s in steps])
+
+            collapsed_per_problem = (
+                steps_df.groupby("problem_id")["phase"]
+                .apply(lambda x: (x == "collapse").any())
+            )
+
+            problem_df["collapsed"] = problem_df["problem_id"].map(collapsed_per_problem)
+            problem_df["collapsed"] = problem_df["collapsed"].fillna(False) 
+
+
 
             all_results.append(summary)
 
@@ -69,32 +84,67 @@ def compare_policies(policy_ids, seeds=(42, 43, 44)):
     # ---------------------------------------------------------
 
     baseline = df[df["policy_id"] == 0]
-    energy = df[df["policy_id"] == 4]
-    random = df[df["policy_id"] == 6]
+    heuristic = df[df["policy_id"] == 4]
+    learned = df[df["policy_id"] == 99]
 
-    if len(energy) > 0 and len(baseline) > 0:
+    if len(learned) > 0 and len(baseline) > 0:
 
-        energy_correct = np.concatenate(energy["_per_problem_correct"].values)
+        learned_correct = np.concatenate(learned["_per_problem_correct"].values)
         baseline_correct = np.concatenate(baseline["_per_problem_correct"].values)
 
-        energy_vs_baseline = bootstrap_diff(
-            energy_correct,
+        learned_vs_baseline = bootstrap_diff(
+            learned_correct,
             baseline_correct
         )
 
-        print("\nEnergy vs Baseline:")
-        print(energy_vs_baseline)
+        print("\nLearned vs Baseline:")
+        print(learned_vs_baseline)
 
-    if len(energy) > 0 and len(random) > 0:
+    if len(learned) > 0 and len(heuristic) > 0:
 
-        random_correct = np.concatenate(random["_per_problem_correct"].values)
+        heuristic_correct = np.concatenate(heuristic["_per_problem_correct"].values)
 
-        energy_vs_random = bootstrap_diff(
-            energy_correct,
-            random_correct
+        learned_vs_heuristic = bootstrap_diff(
+            learned_correct,
+            heuristic_correct
         )
 
-        print("\nEnergy vs Random:")
-        print(energy_vs_random)
+        print("\nLearned vs Heuristic:")
+        print(learned_vs_heuristic)
 
     return df
+
+
+# ==========================================================
+# Main Entry
+# ==========================================================
+
+if __name__ == "__main__":
+
+    # Policies to compare
+    # 0 = baseline
+    # 4 = heuristic energy
+    # 99 = learned policy
+    policies = [0, 4, 99]
+
+    # Seeds for robustness
+    seeds = (42, 43, 44)
+
+    print("\n======================================")
+    print(" Running Policy Comparison Experiment ")
+    print("======================================")
+
+    df = compare_policies(
+        policy_ids=policies,
+        seeds=seeds,
+    )
+
+    print("\n======================================")
+    print(" Experiment Complete ")
+    print("======================================")
+
+    # Optional: save results
+    output_path = "policy_experiment_results.csv"
+    df.drop(columns=["_per_problem_correct"]).to_csv(output_path, index=False)
+
+    print(f"\nResults saved to {output_path}")

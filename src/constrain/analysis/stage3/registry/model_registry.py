@@ -1,7 +1,7 @@
 import joblib
 import os
 import time
-
+from constrain.config import get_config
 
 class ModelRegistry:
 
@@ -12,7 +12,8 @@ class ModelRegistry:
     def save(self, model, metadata: dict):
 
         timestamp = int(time.time())
-        filename = f"model_{timestamp}.joblib"
+        get_config().models_dir
+        filename = f"{get_config().models_dir}/model_{timestamp}.joblib"
         path = os.path.join(self.base_path, filename)
 
         joblib.dump({

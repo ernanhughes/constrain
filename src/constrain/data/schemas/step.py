@@ -36,4 +36,6 @@ class StepDTO(BaseModel):
     policy_action: str
     phase: str
 
+    collapse_probability: Optional[float]
+
     timestamp: float

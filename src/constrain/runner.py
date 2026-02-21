@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 from constrain.data.memory import Memory
 from constrain.config import get_config
 from constrain.model import call_model
-from constrain.policy import apply_policy
+from constrain.policy.apply_policy import apply_policy
 from constrain.reasoning_state import ReasoningState
 from constrain.energy.utils.text_utils import split_into_sentences
 
@@ -178,34 +178,6 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
 
                 total_energy = axes.get("energy")
 
-                # -----------------------------
-                # POLICY
-                # -----------------------------
-
-                action, new_temperature = apply_policy(
-                    policy_id=policy_id,
-                    axes=axes,
-                    reasoning=reasoning,
-                    state=state,
-                    memory=memory,
-                    run_id=run_id,
-                )
-                logger.debug("Policy decision: action=%s, new_temperature=%.2f", action, new_temperature)
-
-                # Apply state transition
-                if action == "ACCEPT":
-                    state.accept(reasoning)
-                    logger.debug("State accepted, history length now %d", len(state.history))
-
-                elif action == "REVERT":
-                    state.revert()
-                    logger.debug("State reverted, history length now %d", len(state.history))
-
-                elif action in ["RESET", "RESET_PROMPT"]:
-                    state.reset()
-                    logger.debug("State reset to original prompt")
-
-                state.temperature = new_temperature
 
                 # -----------------------------
                 # METRICS
@@ -230,6 +202,38 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                     "iteration": iteration,
                     "evidence_count": len(state.history),
                 })
+                flat_metrics = flatten_numeric_dict(all_metrics)
+
+
+                # -----------------------------
+                # POLICY
+                # -----------------------------
+
+                action, new_temperature, collapse_probability = apply_policy(
+                    policy_id=policy_id,
+                    axes=axes,
+                    flat_metrics=flat_metrics,
+                    reasoning=reasoning,
+                    state=state,
+                    memory=memory,
+                    run_id=run_id,
+                )
+                logger.debug("Policy decision: action=%s, new_temperature=%.2f", action, new_temperature)
+
+                # Apply state transition
+                if action == "ACCEPT":
+                    state.accept(reasoning)
+                    logger.debug("State accepted, history length now %d", len(state.history))
+
+                elif action == "REVERT":
+                    state.revert()
+                    logger.debug("State reverted, history length now %d", len(state.history))
+
+                elif action in ["RESET", "RESET_PROMPT"]:
+                    state.reset()
+                    logger.debug("State reset to original prompt")
+
+                state.temperature = new_temperature
 
                 # -----------------------------
                 # SAVE STEP
@@ -241,6 +245,7 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                     iteration=iteration,
                     prompt_text=prompt,
                     reasoning_text=reasoning,
+                    collapse_probability=collapse_probability,
                     gold_answer=gold_answer,
                     extracted_answer=all_metrics["extracted_answer"],
                     total_energy=total_energy,
@@ -259,7 +264,6 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                 step_dto = memory.steps.create(step_dto)
                 logger.debug("Step saved with id=%s", step_dto.id)
 
-                flat_metrics = flatten_numeric_dict(all_metrics)
                 memory.metrics.bulk_from_dict(
                     step_id=step_dto.id,
                     stage="energy_v2",

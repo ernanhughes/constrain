@@ -77,3 +77,33 @@ class MetricStore(BaseSQLAlchemyStore[MetricDTO]):
             return result
 
         return self._run(op)
+    
+
+    def get_by_run(self, run_id: str) -> Dict[int, Dict[str, float]]:
+        """
+        Return:
+            {
+                step_id: {metric_name: metric_value}
+            }
+        """
+
+        from constrain.data.orm.step import StepORM
+
+        def op(s):
+            rows = (
+                s.query(MetricORM)
+                .join(StepORM, MetricORM.step_id == StepORM.id)
+                .filter(StepORM.run_id == run_id)
+                .all()
+            )
+
+            result = {}
+
+            for row in rows:
+                if row.step_id not in result:
+                    result[row.step_id] = {}
+                result[row.step_id][row.metric_name] = row.metric_value
+
+            return result
+
+        return self._run(op)

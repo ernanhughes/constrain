@@ -14,6 +14,7 @@ Features:
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import os
 import subprocess
@@ -105,6 +106,16 @@ def _get_git_metadata() -> Dict[str, Optional[str]]:
 @dataclass(frozen=True)
 class ConstrainConfig:
 
+    # dirs and paths
+    home_dir: str
+    base_dir: str
+    logs_dir: str
+    plots_dir: str
+    models_dir: str
+    reports_dir: str
+    learned_model_path: str
+    learned_policy_shadow: bool
+
     # Core
     db_url: str
     model_name: str
@@ -166,6 +177,38 @@ class ConstrainConfig:
                 source = "default"
             logger.debug("Config %s = %s (source: %s)", key, value, source)
             return value
+
+        home_dir = Path(
+            os.environ.get(
+                "CONSTRAIN_HOME",
+                Path.home() / ".constrain"
+            )
+        )
+
+        home_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        base_dir = home_dir / timestamp
+        base_dir.mkdir(parents=True, exist_ok=True)
+        logs_dir = base_dir / "logs"
+        plots_dir = base_dir / "plots"
+        models_dir = base_dir / "models"
+        reports_dir = base_dir / "reports"
+        learned_model_path = models_dir / "learned_policy.joblib"
+
+        # Ensure directories exist
+        for d in [
+            base_dir,
+            logs_dir,
+            plots_dir,
+            models_dir,
+            reports_dir,
+        ]:
+            d.mkdir(parents=True, exist_ok=True)
+
+        learned_policy_shadow = bool(get_value(
+            "learned_policy_shadow", toml_section="experiment", env_var=None,
+            default=False
+        ))
 
         # Core
         db_url = get_value(
@@ -262,6 +305,14 @@ class ConstrainConfig:
         logger.debug("Configuration loaded successfully")
 
         return cls(
+            home_dir=str(home_dir),
+            base_dir=str(base_dir),
+            logs_dir=str(logs_dir),
+            plots_dir=str(plots_dir),
+            models_dir=str(models_dir),
+            reports_dir=str(reports_dir),
+            learned_model_path=str(learned_model_path),
+            learned_policy_shadow=learned_policy_shadow,
             db_url=db_url,
             model_name=model_name,
             embedding_model=embedding_model,
@@ -298,7 +349,15 @@ class ConstrainConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
+            "home_dir": self.home_dir,
+            "base_dir": self.base_dir,
+            "logs_dir": self.logs_dir,
+            "plots_dir": self.plots_dir,
+            "models_dir": self.models_dir,
+            "reports_dir": self.reports_dir,
             "db_url": self.db_url,
+            "learned_model_path": self.learned_model_path,  
+            "learned_policy_shadow": self.learned_policy_shadow,
             "model_name": self.model_name,
             "provider": self.provider,
             "embedding_model": self.embedding_model,

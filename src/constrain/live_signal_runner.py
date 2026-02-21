@@ -5,7 +5,7 @@ from tqdm.auto import tqdm
 
 from constrain.data.memory import Memory
 from constrain.config import get_config
-from constrain.policy import apply_policy
+from constrain.policy.apply_policy import apply_policy
 from constrain.model import call_model
 from constrain.energy_computer import compute_energy
 from constrain.analysis.stage3.rolling_monitor import RollingSignalMonitor

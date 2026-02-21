@@ -13,5 +13,14 @@
             "args": [
             ]
         },
+        {
+            "name": "policy_comparison",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.analysis.stage2.policy_comparison",
+            "args": [
+            ]
+        },
     ]
 }

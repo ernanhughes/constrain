@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Any, Dict, List
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -16,7 +16,7 @@ from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
 from constrain.data.memory import Memory
 from constrain.data.schemas.signal_report import SignalReportDTO
 from constrain.utils.json_utils import dumps_safe
-
+from constrain.config import get_config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -100,9 +100,20 @@ class SignalDiscoveryService:
                 "model_results": {},
            }
 
+        self._visualize_energy_distribution(df_clean, target_col, run_id)
+
         model, auc_score, fold_aucs = self._train_model(
             df_clean, feature_cols, target_col=target_col, n_splits=n_splits
         )
+        if model is None:
+            logger.warning("⚠️ No valid model trained (all folds skipped).")
+            return {
+                "skipped": True,
+                "reason": "no_valid_folds",
+                "dataframe": full_df,
+                "diagnostics": {},
+                "model_results": {},
+            }
         importance = self._extract_importance(model, feature_cols)
 
         diagnostics = self._compute_diagnostics(df_clean, target_col)
@@ -163,6 +174,26 @@ class SignalDiscoveryService:
             return results
         
         return results
+
+
+    def train_collapse_predictor(self, df, feature_cols, target_col):
+
+        model = xgb.XGBClassifier(
+            n_estimators=200,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            eval_metric="logloss",
+            random_state=42,
+        )
+
+        X = df[feature_cols]
+        y = df[target_col]
+
+        model.fit(X, y)
+
+        return model
 
     # ---------------------------------------------------------
     # Label Engineering
@@ -258,7 +289,10 @@ class SignalDiscoveryService:
             logger.warning("⚠️ All folds skipped — no valid training splits")
             return None, float("nan"), []
 
+        avg_auc = float(np.nanmean(aucs))
+
         return models[-1], avg_auc, aucs
+
 
     # ---------------------------------------------------------
     # Importance Extraction
@@ -278,6 +312,23 @@ class SignalDiscoveryService:
         )
 
         return [{"feature": f, "importance": float(score)} for f, score in ranking]
+
+    def _visualize_energy_distribution(self, df, target_col, run_id):
+        import matplotlib.pyplot as plt
+
+        stable = df[df[target_col] == 0]
+        collapse = df[df[target_col] == 1]
+
+        plt.figure(figsize=(8, 5))
+        plt.hist(stable["total_energy"], bins=30, alpha=0.5, label="Stable")
+        plt.hist(collapse["total_energy"], bins=30, alpha=0.5, label="Collapse")
+        plt.legend()
+        plt.title("Energy Distribution")
+        plt.xlabel("Total Energy")
+        plt.ylabel("Count")
+        plot_path = Path(get_config().plots_dir) / f"{run_id}_energy_distribution.png"
+        plt.savefig(plot_path, dpi=150, bbox_inches="tight")
+        plt.close()
 
     def _compute_diagnostics(self, df: pd.DataFrame, target_col: str):
         diagnostics = {}
