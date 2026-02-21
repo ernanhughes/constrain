@@ -43,7 +43,7 @@ class MetricStore(BaseSQLAlchemyStore[MetricDTO]):
         def op(s):
             objs = []
             for name, value in metrics.items():
-                if value:
+                if value is not None:
                     objs.append(
                         MetricORM(
                             step_id=step_id,

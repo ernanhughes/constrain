@@ -15,7 +15,7 @@ from constrain.energy.utils.text_utils import split_into_sentences
 # ======================================================
 
 # instantiate once at module level
-_GEOMETRY = ClaimEvidenceGeometry(top_k=12, rank_r=8)
+_GEOMETRY = ClaimEvidenceGeometry(top_k=6, rank_r=4)
 _EMBEDDER = HFEmbedder(
     model_name=get_config().embedding_model,
     backend=SQLiteEmbeddingBackend(str(get_config().embedding_db)),

@@ -1,58 +1,68 @@
 import uuid
 import time
-from datasets import load_dataset
 import random
+import logging
 import numpy as np
+from datasets import load_dataset
+from tqdm.auto import tqdm
+
 from constrain.data.memory import Memory
 from constrain.config import get_config
-from constrain.policy import apply_policy
 from constrain.model import call_model
-from constrain.energy_computer import compute_energy
+from constrain.policy import apply_policy
+from constrain.reasoning_state import ReasoningState
+from constrain.energy.utils.text_utils import split_into_sentences
 
 from constrain.data.schemas.run import RunDTO
 from constrain.data.schemas.step import StepDTO
 from constrain.data.schemas.intervention import InterventionDTO
+
 from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
-from tqdm.auto import tqdm
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
 from constrain.analysis.visualization.dashboard_exporter import DashboardExporter
 from constrain.analysis.stage3.signal_discovery_service import SignalDiscoveryService
 
-import logging
+from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
+from constrain.energy.embedding.hf_embedder import HFEmbedder
+from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
+from constrain.energy.gate import VerifiabilityGate
+from constrain.utils.dict_utils import flatten_numeric_dict
+
 logger = logging.getLogger(__name__)
 
-def run(policy_id: int = 4, seed: int = 42) -> str:
-    """
-    Main execution pipeline.
 
-    Returns:
-        run_id (str)
-    """
+def run(policy_id: int = 4, seed: int = 42) -> str:
 
     start_time = time.time()
 
     # ==========================================================
-    # STAGE 0 — Initialization
+    # STAGE 0 — INIT
     # ==========================================================
-
-    logger.info("========== STAGE 0: INITIALIZATION ==========")
 
     random.seed(seed)
     np.random.seed(seed)
 
     cfg = get_config()
-    memory = Memory()
+    memory = Memory(cfg.db_url)
+
+    embedder = HFEmbedder(
+        model_name=cfg.embedding_model,
+        backend=SQLiteEmbeddingBackend(str(cfg.embedding_db)),
+    )
+
+    energy_computer = ClaimEvidenceGeometry(top_k=6, rank_r=4)
+
+    gate = VerifiabilityGate(
+        embedder=embedder,
+        energy_computer=energy_computer,
+    )
 
     run_id = f"run_{uuid.uuid4().hex[:8]}"
     logger.info(f"Run ID: {run_id}")
-    logger.info(f"Policy ID: {policy_id}")
-    logger.info(f"Seed: {seed}")
 
     # ==========================================================
-    # STAGE 1 — Register Run
+    # REGISTER RUN
     # ==========================================================
-
-    logger.info("========== STAGE 1: REGISTER RUN ==========")
 
     run_dto = RunDTO(
         run_id=run_id,
@@ -74,111 +84,121 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
     memory.runs.create(run_dto)
 
     # ==========================================================
-    # STAGE 2 — Load Dataset
+    # LOAD DATASET
     # ==========================================================
-
-    logger.info("========== STAGE 2: DATASET ==========")
 
     dataset = load_dataset("gsm8k", "main", split="test")
-
-    if cfg.fast_mode:
-        logger.info("⚡ FAST MODE ENABLED")
-
-        existing_prompts = set(memory.steps.get_distinct_prompts())
-        fast_examples = []
-        new_examples = []
-
-        for ex in dataset:
-            if ex["question"] in existing_prompts:
-                fast_examples.append(ex)
-            else:
-                new_examples.append(ex)
-
-        logger.info(
-            f"Dataset split → Cached: {len(fast_examples)}, New: {len(new_examples)}"
-        )
-
-        dataset = (fast_examples + new_examples)[: cfg.num_problems]
-    else:
-        dataset = dataset.shuffle(seed=0).select(range(cfg.num_problems))
+    dataset = dataset.shuffle(seed=seed).select(range(cfg.num_problems))
 
     # ==========================================================
-    # STAGE 3 — Main Execution Loop
+    # MAIN LOOP
     # ==========================================================
 
-    logger.info("========== STAGE 3: EXECUTION LOOP ==========")
-    pbar = tqdm(dataset, desc="Problems", total=cfg.num_problems)
-
-    for pid, example in enumerate(pbar):
+    for pid, example in enumerate(tqdm(dataset, desc="Problems")):
 
         prompt = example["question"]
         gold_answer = example["answer"].split("####")[-1].strip()
 
-        state = prompt
-        last_stable = prompt
-        reasoning_history = []
-        temperature = cfg.initial_temperature
-        prev_reasoning = None
+        state = ReasoningState(prompt)
+        state.temperature = cfg.initial_temperature
 
         for iteration in range(cfg.num_recursions):
 
             try:
-                prompt_text = f"Solve step by step:\n\n{prompt}"
+                prompt_text = f"Solve step by step:\n\n{state.current}"
+                temperature = state.temperature
 
                 # -----------------------------
-                # Model (with caching)
+                # Model
                 # -----------------------------
 
                 cached = memory.steps.get_reasoning_by_prompt(prompt, temperature)
 
                 if cached:
                     reasoning = cached.reasoning_text
-                    logger.debug(f"[Cache hit] P{pid} I{iteration}")
                 else:
                     reasoning = call_model(prompt_text, temperature)
 
                 # -----------------------------
-                # Energy
+                # Build Evidence
                 # -----------------------------
 
-                energy_metrics = compute_energy(
-                    prompt=prompt,
-                    current=reasoning,
-                    reasoning_history=reasoning_history,
+                evidence_texts = []
+                evidence_texts.extend(split_into_sentences(prompt))
+
+                for past in state.history:
+                    evidence_texts.extend(split_into_sentences(past))
+
+                # -----------------------------
+                # Energy (Gate)
+                # -----------------------------
+
+                energy_result, axes, _ = gate.compute_axes(
+                    claim=reasoning,
+                    evidence_texts=evidence_texts,
                 )
 
+                # Stability energy (previous accepted step only)
+                if state.history:
+                    last = state.history[-1]
+                    stability_result, stability_axes, _ = gate.compute_axes(
+                        claim=reasoning,
+                        evidence_texts=split_into_sentences(last),
+                    )
+                    stability_energy = stability_axes.get("energy")
+                else:
+                    stability_energy = 0.0
+
+                total_energy = axes.get("energy")
+
                 # -----------------------------
-                # Policy
+                # POLICY
                 # -----------------------------
 
-                new_state, temperature, action = apply_policy(
-                    policy_id,
-                    energy_metrics["total_energy"],
-                    reasoning,
-                    last_stable,
-                    prompt,
-                    temperature,
-                    memory,
+                action, new_temperature = apply_policy(
+                    policy_id=policy_id,
+                    axes=axes,
+                    reasoning=reasoning,
+                    state=state,
+                    memory=memory,
                     run_id=run_id,
                 )
 
+                # Apply state transition
                 if action == "ACCEPT":
-                    last_stable = reasoning
-                    reasoning_history.append(reasoning)
+                    state.accept(reasoning)
+
+                elif action == "REVERT":
+                    state.revert()
+
+                elif action in ["RESET", "RESET_PROMPT"]:
+                    state.reset()
+
+                state.temperature = new_temperature
 
                 # -----------------------------
-                # Metrics
+                # METRICS
                 # -----------------------------
 
                 all_metrics = MetricsCalculator.compute_all(
                     reasoning=reasoning,
                     gold_answer=gold_answer,
-                    energy_metrics=energy_metrics,
+                    energy_metrics=energy_result.to_dict(),
                     cfg=cfg,
                 )
 
+                all_metrics.update({
+                    "energy": axes.get("energy"),
+                    "participation_ratio": axes.get("participation_ratio"),
+                    "sensitivity": axes.get("sensitivity"),
+                    "alignment": axes.get("alignment"),
+                    "sim_margin": axes.get("sim_margin"),
+                    "iteration": iteration,
+                    "evidence_count": len(state.history),
+                })
+
                 # -----------------------------
-                # Persist Step
+                # SAVE STEP
                 # -----------------------------
 
                 step_dto = StepDTO(
@@ -189,12 +209,12 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                     reasoning_text=reasoning,
                     gold_answer=gold_answer,
                     extracted_answer=all_metrics["extracted_answer"],
-                    total_energy=energy_metrics["total_energy"],
-                    grounding_energy=energy_metrics["grounding_energy"],
-                    stability_energy=energy_metrics["stability_energy"],
+                    total_energy=total_energy,
+                    grounding_energy=energy_result.energy,
+                    stability_energy=stability_energy,
                     correctness=all_metrics.get("correctness"),
                     accuracy=all_metrics.get("accuracy"),
-                    temperature=temperature,
+                    temperature=state.temperature,
                     policy_action=action,
                     phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[
                         all_metrics["phase_value"]
@@ -204,14 +224,16 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
 
                 step_dto = memory.steps.create(step_dto)
 
+                flat_metrics = flatten_numeric_dict(all_metrics)
                 memory.metrics.bulk_from_dict(
                     step_id=step_dto.id,
-                    stage="energy_v1",
-                    metrics=all_metrics,
+                    stage="energy_v2",
+                    metrics=flat_metrics,
                 )
 
+
                 # -----------------------------
-                # Intervention
+                # INTERVENTION LOG
                 # -----------------------------
 
                 if action != "ACCEPT":
@@ -220,26 +242,21 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                             run_id=run_id,
                             problem_id=pid,
                             iteration=iteration,
-                            threshold="dynamic",
+                            threshold="learned",
                             rationale=action,
                             reverted_to=iteration - 1,
-                            new_temperature=temperature,
+                            new_temperature=new_temperature,
                             timestamp=time.time(),
                         )
                     )
 
             except Exception as e:
-                print("Error during execution loop:", e)
-                logger.exception(
-                    f"Crash at problem {pid}, iteration {iteration}: {e}"
-                )
+                logger.exception(f"Crash at problem {pid}, iteration {iteration}: {e}")
                 break
 
     # ==========================================================
-    # STAGE 4 — Aggregation
+    # AGGREGATION
     # ==========================================================
-
-    logger.info("========== STAGE 4: AGGREGATION ==========")
 
     try:
         MetricsAggregator.dump_run_csv(memory, run_id)
@@ -247,10 +264,8 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
         logger.exception(f"Aggregation failed: {e}")
 
     # ==========================================================
-    # STAGE 5 — Finalize Run
+    # FINALIZE
     # ==========================================================
-
-    logger.info("========== STAGE 5: FINALIZE ==========")
 
     memory.runs.update(
         run_id,
@@ -261,29 +276,19 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
     )
 
     # ==========================================================
-    # STAGE 6 — Signal Discovery
+    # SIGNAL DISCOVERY
     # ==========================================================
 
-    logger.info("========== STAGE 6: SIGNAL DISCOVERY ==========")
-
     try:
-        # ✅ Check run completed successfully
         run_info = memory.runs.get_by_id(run_id)
-        if run_info.status != "completed":
-            logger.warning(f"⚠️ Skipping signal discovery: run status = {run_info.status}")
-        else:
+        if run_info.status == "completed":
             service = SignalDiscoveryService(memory)
             results = service.analyze_and_persist(run_id)
             DashboardExporter.export_json(results, run_id)
             DashboardExporter.export_html(results, run_id)
-            logger.info("Signal discovery complete")
-
     except Exception as e:
         logger.exception(f"Signal discovery failed: {e}")
 
-    elapsed = time.time() - start_time
-    logger.info(f"Run completed in {elapsed:.2f}s")
+    logger.info(f"Run completed in {time.time() - start_time:.2f}s")
 
     return run_id
-
-    

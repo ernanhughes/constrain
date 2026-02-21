@@ -41,17 +41,16 @@ class ApplicationEvaluator:
 
         steps_df = self._load_steps(run_id)
 
-        if "problem_id" not in steps_df.columns:
-            raise ValueError("problem_id missing from dataframe.")
+        if steps_df.empty:
+            return pd.DataFrame()
 
         problem_rows = []
 
         for problem_id, group in steps_df.groupby("problem_id"):
 
-            group = group.sort_values("iteration")
+            group = group.sort_values("iteration").reset_index(drop=True)
 
             final_row = group.iloc[-1]
-
             final_correct = self._is_correct(final_row)
 
             any_intervention = (group["policy_action"] != "ACCEPT").any()
@@ -59,13 +58,13 @@ class ApplicationEvaluator:
                 (group["policy_action"] != "ACCEPT").sum()
             )
 
-            avg_energy = float(group["total_energy"].mean())
-            max_energy = float(group["total_energy"].max())
+            avg_energy = float(group["total_energy"].mean(skipna=True))
+            max_energy = float(group["total_energy"].max(skipna=True))
 
-            num_iterations = int(group["iteration"].max() + 1)
+            num_iterations = int(len(group))
 
             # ----------------------------------------------------
-            # Intervention Effectiveness
+            # Intervention Effectiveness (corrected logic)
             # ----------------------------------------------------
 
             intervention_helped = False
@@ -76,7 +75,8 @@ class ApplicationEvaluator:
                 prev = group.iloc[i - 1]
                 curr = group.iloc[i]
 
-                if curr["policy_action"] != "ACCEPT":
+                # Intervention triggered at previous step
+                if prev["policy_action"] != "ACCEPT":
 
                     before_correct = self._is_correct(prev)
                     after_correct = self._is_correct(curr)
@@ -109,11 +109,13 @@ class ApplicationEvaluator:
 
     def _load_steps(self, run_id: str):
 
-        # IMPORTANT: use aggregator (consistent schema)
         df = MetricsAggregator.build_run_dataframe(
             self.memory,
             run_id,
         )
+
+        if df is None or df.empty:
+            raise ValueError(f"No steps found for run_id={run_id}")
 
         required = [
             "problem_id",
@@ -132,10 +134,14 @@ class ApplicationEvaluator:
 
     def _is_correct(self, row):
 
+        # Prefer stored correctness if present
+        if "accuracy" in row and not pd.isna(row["accuracy"]):
+            return bool(row["accuracy"])
+
         extracted = str(row.get("extracted_answer", "")).strip()
         gold = str(row.get("gold_answer", "")).strip()
 
-        if extracted == "" or gold == "":
+        if not extracted or not gold:
             return False
 
         return extracted == gold

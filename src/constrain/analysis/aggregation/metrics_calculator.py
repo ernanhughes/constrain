@@ -113,8 +113,9 @@ class MetricsCalculator:
 
         accuracy_metrics = cls.compute_accuracy(reasoning, gold_answer)
 
+        energy = energy_metrics.get("value", 0.0)
         phase_label = cls.compute_phase_label(
-            energy_metrics["total_energy"],
+            energy,
             cfg.tau_soft,
             cfg.tau_medium,
             cfg.tau_hard,

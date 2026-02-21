@@ -25,93 +25,152 @@ def _get_thresholds(cfg, memory: Memory, run_id: str):
         raise ValueError(f"Unknown policy_mode: {cfg.policy_mode}")
 
 
-def apply_policy(policy_id, energy, reasoning, last_stable, prompt, temperature, memory: Memory, run_id: str):
+
+
+def apply_policy(
+    policy_id: int,
+    axes: dict,
+    reasoning: str,
+    state,
+    memory: Memory,
+    run_id: str,
+):
+    """
+    New policy interface.
+
+    Returns:
+        (action: str, new_temperature: float)
+    """
 
     cfg = get_config()
 
-    tau_soft, tau_medium, tau_hard = _get_thresholds(cfg, memory, run_id)
+    energy = axes.get("energy")
+    pr = axes.get("participation_ratio")
+    sensitivity = axes.get("sensitivity")
+
+    temperature = state.temperature
+
+    tau_soft = cfg.tau_soft
+    tau_medium = cfg.tau_medium
+    tau_hard = cfg.tau_hard
 
     # -------------------------------------------------
-    # Accept-all baseline
+    # Policy 0 — Accept All (Baseline)
     # -------------------------------------------------
 
     if policy_id == 0:
-        return reasoning, temperature, "ACCEPT"
+        return "ACCEPT", temperature
 
     # -------------------------------------------------
-    # Energy below soft threshold = stable
+    # If stable region → ACCEPT
     # -------------------------------------------------
 
     if energy <= tau_soft:
-        return reasoning, temperature, "ACCEPT"
+        return "ACCEPT", temperature
 
     # -------------------------------------------------
-    # Policy variants
+    # Policy 1 — Simple Revert
     # -------------------------------------------------
 
     if policy_id == 1:
-        return last_stable, temperature, "REVERT"
+        return "REVERT", temperature
+
+    # -------------------------------------------------
+    # Policy 2 — Revert + Cool
+    # -------------------------------------------------
 
     if policy_id == 2:
-        return last_stable, temperature * 0.9, "REVERT_COOL"
+        return "REVERT", max(0.1, temperature * 0.9)
+
+    # -------------------------------------------------
+    # Policy 3 — Aggressive Revert
+    # -------------------------------------------------
 
     if policy_id == 3:
         if energy > tau_medium:
-            return last_stable, temperature * 0.75, "REVERT_AGGRESSIVE"
-        return last_stable, temperature, "REVERT"
+            return "REVERT", max(0.1, temperature * 0.75)
+        return "REVERT", temperature
+
+    # -------------------------------------------------
+    # Policy 4 — Hard Reset on Extreme Energy
+    # -------------------------------------------------
 
     if policy_id == 4:
         if energy > tau_hard:
-            return prompt, temperature * 0.7, "RESET_PROMPT"
-        return last_stable, temperature, "REVERT"
+            return "RESET", max(0.1, temperature * 0.7)
+        return "REVERT", temperature
+
+    # -------------------------------------------------
+    # Policy 5 — Medium Reset Strategy
+    # -------------------------------------------------
 
     if policy_id == 5:
         if energy > tau_medium:
-            return prompt, temperature * 0.85, "RESET"
-        return last_stable, temperature * 0.85, "REVERT_STABILIZE"
-    # simple random for testing
+            return "RESET", max(0.1, temperature * 0.85)
+        return "REVERT", max(0.1, temperature * 0.85)
+
+    # -------------------------------------------------
+    # Policy 6 — Simple Random
+    # -------------------------------------------------
+
     if policy_id == 6:
         import random
         if random.random() < 0.3:
-            return last_stable, temperature, "REVERT_RANDOM"
-        return reasoning, temperature, "ACCEPT"
+            return "REVERT", temperature
+        return "ACCEPT", temperature
 
-    # more in depth random policy for testing
+    # -------------------------------------------------
+    # Policy 7 — Weighted Random
+    # -------------------------------------------------
+
     if policy_id == 7:
         import random
 
-        # Only consider intervention if above soft threshold
         if energy <= tau_soft:
-            return reasoning, temperature, "ACCEPT"
-
-        # Randomly select from reasonable actions
-        actions = [
-            ("REVERT", 0.4),
-            ("REVERT_COOL", 0.3),
-            ("RESET", 0.2),
-            ("RESET_PROMPT", 0.1),
-        ]
+            return "ACCEPT", temperature
 
         r = random.random()
-        cumulative = 0
-        for action, weight in actions:
-            cumulative += weight
-            if r <= cumulative:
-                chosen = action
-                break
 
+        if r < 0.4:
+            return "REVERT", temperature
+        elif r < 0.7:
+            return "REVERT", max(0.1, temperature * 0.85)
+        elif r < 0.9:
+            return "RESET", max(0.1, temperature * 0.85)
+        else:
+            return "RESET", max(0.1, temperature * 0.7)
 
-        if chosen == "REVERT":
-            return last_stable, temperature, "REVERT_RANDOM"
+    # -------------------------------------------------
+    # Policy 8 — Geometry-Aware Ambiguity Band
+    # -------------------------------------------------
 
-        if chosen == "REVERT_COOL":
-            return last_stable, max(0.1, temperature * 0.85), "REVERT_COOL_RANDOM"
+    if policy_id == 8:
+        gap_width = 0.15 * tau_soft
+        low = tau_soft - gap_width
+        high = tau_soft + gap_width
 
-        if chosen == "RESET":
-            return prompt, max(0.1, temperature * 0.85), "RESET_RANDOM"
+        # Clearly good
+        if energy <= low:
+            return "ACCEPT", temperature
 
-        if chosen == "RESET_PROMPT":
-            return prompt, max(0.1, temperature * 0.7), "RESET_PROMPT_RANDOM"
+        # Clearly bad
+        if energy >= high:
+            return "REJECT", temperature
 
+        # Ambiguity band → geometry activation
+        if pr > 0.6:
+            return "REVERT", temperature
 
-    return reasoning, temperature, "ACCEPT"
+        if sensitivity > 0.5:
+            return "REVERT", temperature
+
+        if energy <= tau_soft:
+            return "ACCEPT", temperature
+
+        return "REVERT", temperature
+
+    # -------------------------------------------------
+    # Default fallback
+    # -------------------------------------------------
+
+    return "ACCEPT", temperature
