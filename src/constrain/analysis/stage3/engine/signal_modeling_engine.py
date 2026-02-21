@@ -1,19 +1,21 @@
 from __future__ import annotations
 
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GroupKFold
 from xgboost import XGBClassifier
 
+from constrain.analysis.stage3.engine.shap_explainer import ShapExplainer
+from constrain.analysis.stage3.registry.leaderboard import Leaderboard
+from constrain.analysis.stage3.registry.model_registry import ModelRegistry
+
+from .bootstrap import BootstrapCI
 from .calibration import ProbabilityCalibration
 from .stability import SignalStabilityAnalyzer
 from .temperature_scaling import TemperatureScaler
-from .bootstrap import BootstrapCI
-from constrain.analysis.stage3.registry.model_registry import ModelRegistry
-from constrain.analysis.stage3.registry.leaderboard import Leaderboard
-from constrain.analysis.stage3.engine.shap_explainer import ShapExplainer
 
 
 class SignalModelingEngine:

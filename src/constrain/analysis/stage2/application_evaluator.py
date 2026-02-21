@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import pandas as pd
 
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
+from constrain.config import get_config
 
 
 class ApplicationEvaluator:
@@ -70,10 +72,14 @@ class ApplicationEvaluator:
             intervention_helped = False
             intervention_harmed = False
 
+            tau_hard = get_config().tau_hard
+            collapsed = (group["total_energy"] > tau_hard).any()
             for i in range(1, len(group)):
 
                 prev = group.iloc[i - 1]
                 curr = group.iloc[i]
+
+
 
                 # Intervention triggered at previous step
                 if prev["policy_action"] != "ACCEPT":
@@ -98,6 +104,7 @@ class ApplicationEvaluator:
                     "num_iterations": num_iterations,
                     "intervention_helped": intervention_helped,
                     "intervention_harmed": intervention_harmed,
+                    "collapsed": bool(collapsed),   # 🔥 add this
                 }
             )
 

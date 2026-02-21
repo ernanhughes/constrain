@@ -1,8 +1,9 @@
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+
 
 @dataclass(frozen=True)
 class DecisionTrace:

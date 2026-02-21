@@ -1,10 +1,9 @@
 from typing import Any, Optional
 
-from constrain.data.stores.base_store import BaseSQLAlchemyStore
-from constrain.data.orm.problem_summary import ProblemSummaryORM
-
-
 from sqlalchemy.orm import sessionmaker
+
+from constrain.data.orm.problem_summary import ProblemSummaryORM
+from constrain.data.stores.base_store import BaseSQLAlchemyStore
 
 
 class ProblemSummaryStore(BaseSQLAlchemyStore[ProblemSummaryORM]):

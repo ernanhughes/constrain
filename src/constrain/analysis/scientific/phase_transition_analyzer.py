@@ -1,6 +1,6 @@
-import pandas as pd
-from typing import Dict, Any
+from typing import Any, Dict
 
+import pandas as pd
 
 
 class PhaseTransitionAnalyzer:

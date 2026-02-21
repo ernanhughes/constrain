@@ -7,19 +7,19 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from constrain.config import get_config
+
 from .calibration import AdaptiveCalibrator
-from .gate import VerifiabilityGate
-from .geometry.claim_evidence import ClaimEvidenceGeometry
-from .utils.id_utils import compute_ids
-from .utils.math_utils import accept_margin_ratio
-from .protocols.embedder import Embedder
-from .protocols.gate import Gate
-from .protocols.calibrator import Calibrator
-from .protocols.geometry import GeometryComputer
 from .embedding.backends.sqlite_backend import SQLiteEmbeddingBackend
 from .embedding.hf_embedder import HFEmbedder
-
-from constrain.config import get_config
+from .gate import VerifiabilityGate
+from .geometry.claim_evidence import ClaimEvidenceGeometry
+from .protocols.calibrator import Calibrator
+from .protocols.embedder import Embedder
+from .protocols.gate import Gate
+from .protocols.geometry import GeometryComputer
+from .utils.id_utils import compute_ids
+from .utils.math_utils import accept_margin_ratio
 
 logger = logging.getLogger(__name__)
 

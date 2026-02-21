@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+from constrain.data.stores.experiment_store import ExperimentStore
 from constrain.data.stores.signal_report_store import SignalReportStore
 
 if TYPE_CHECKING:
@@ -28,4 +29,5 @@ class MemoryProtocol(Protocol):
     signals: SignalDiscoveryStore
     calibrations: CalibrationStore
     signal_reports: SignalReportStore 
+    experiments: ExperimentStore
 

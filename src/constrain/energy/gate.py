@@ -6,7 +6,7 @@ from typing import List, Optional
 import numpy as np
 
 from .axes.bundle import AxisBundle
-from .custom_types import EnergyResult, EvaluationResult, DecisionTrace
+from .custom_types import DecisionTrace, EnergyResult, EvaluationResult
 from .geometry.claim_evidence import ClaimEvidenceGeometry
 from .protocols.embedder import Embedder
 from .protocols.policy import Policy

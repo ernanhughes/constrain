@@ -1,11 +1,12 @@
 # src/constrain/analysis/stage3/engine/cross_validation.py
 
 from __future__ import annotations
-from typing import Dict, Any, List, Tuple
+
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GroupKFold
 
 
 class CrossValidator:

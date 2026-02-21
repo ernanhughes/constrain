@@ -1,6 +1,8 @@
 from constrain.energy.axes.bundle import AxisBundle
 from constrain.energy.custom_types import Verdict
+
 from .base import PolicyLike
+
 
 class AxisOnlyPolicy(PolicyLike):
     """

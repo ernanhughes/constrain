@@ -11,6 +11,7 @@ from constrain.data.memory_protocol import MemoryProtocol
 from constrain.data.stores.calibration_store import CalibrationStore
 from constrain.data.stores.derived_metrics_store import DerivedMetricsStore
 from constrain.data.stores.embedding_store import EmbeddingStore
+from constrain.data.stores.experiment_store import ExperimentStore
 from constrain.data.stores.intervention_store import InterventionStore
 from constrain.data.stores.metric_store import MetricStore
 from constrain.data.stores.run_store import RunStore
@@ -68,7 +69,8 @@ class Memory(MemoryProtocol):
             ("derived_metrics", DerivedMetricsStore),  
             ("signals", SignalDiscoveryStore),
             ("calibrations", CalibrationStore),
-            ("signal_reports", SignalReportStore),  # Reusing store for reports
+            ("signal_reports", SignalReportStore), 
+            ("experiments", ExperimentStore),
         ]
         for name, store_class in core_stores:
             self.register_store(name, store_class(self.session_maker, memory=self))

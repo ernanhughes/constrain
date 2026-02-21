@@ -1,7 +1,10 @@
-import joblib
 import os
 import time
+
+import joblib
+
 from constrain.config import get_config
+
 
 class ModelRegistry:
 

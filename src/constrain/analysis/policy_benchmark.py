@@ -1,7 +1,9 @@
-from constrain.runner import run
-from constrain.analysis.stage2.application_evaluator import ApplicationEvaluator
+from constrain.analysis.stage2.application_evaluator import \
+    ApplicationEvaluator
 from constrain.config import get_config
 from constrain.data.memory import Memory
+from constrain.runner import run
+
 
 class PolicyBenchmark:
 

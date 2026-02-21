@@ -3,14 +3,14 @@
 Scientific-grade analysis framework for recursive stability validation.
 Transforms raw logs into causal evidence with statistical rigor.
 """
+import logging
 import sqlite3
-import pandas as pd
-import numpy as np
 from typing import Dict, List, Optional
+
+import numpy as np
+import pandas as pd
 from scipy import stats
 from sklearn.metrics import roc_auc_score
-import logging
-
 
 logger = logging.getLogger(__name__)
 

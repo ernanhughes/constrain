@@ -3,7 +3,6 @@
 from typing import List, Protocol, Tuple
 
 import numpy as np
-
 from certum.custom_types import EnergyResult
 
 

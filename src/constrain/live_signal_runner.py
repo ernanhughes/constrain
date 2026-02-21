@@ -1,17 +1,17 @@
-import uuid
 import time
+import uuid
+
 from datasets import load_dataset
 from tqdm.auto import tqdm
 
-from constrain.data.memory import Memory
-from constrain.config import get_config
-from constrain.policy.apply_policy import apply_policy
-from constrain.model import call_model
-from constrain.energy_computer import compute_energy
 from constrain.analysis.stage3.rolling_monitor import RollingSignalMonitor
-
+from constrain.config import get_config
+from constrain.data.memory import Memory
 from constrain.data.schemas.run import RunDTO
 from constrain.data.schemas.step import StepDTO
+from constrain.energy_computer import compute_energy
+from constrain.model import call_model
+from constrain.policy.apply_policy import apply_policy
 
 
 def run_live(policy_id: int = 5):

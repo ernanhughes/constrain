@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import numpy as np
-from typing import Dict, Any
 from collections import defaultdict
+from typing import Any, Dict
+
+import numpy as np
 
 from constrain.data.memory import Memory
 

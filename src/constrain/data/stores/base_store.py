@@ -6,19 +6,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from time import perf_counter
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    DefaultDict,
-    Dict,
-    Generic,
-    List,
-    Literal,
-    Optional,
-    Type,
-    TypeVar,
-)
+from typing import (TYPE_CHECKING, Any, Callable, DefaultDict, Dict, Generic,
+                    List, Literal, Optional, Type, TypeVar)
 
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker

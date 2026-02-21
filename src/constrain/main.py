@@ -1,7 +1,6 @@
 import warnings
 
 from constrain.analysis.stage2.policy_comparison import compare_policies
-
 from constrain.config import get_config
 from constrain.runner import run
 

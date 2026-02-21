@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
-from typing import Any, Dict, List
 from pathlib import Path
+from typing import Any, Dict, List
+
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -13,11 +15,10 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
+from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.signal_report import SignalReportDTO
 from constrain.utils.json_utils import dumps_safe
-from constrain.config import get_config
-import logging
 
 logger = logging.getLogger(__name__)
 

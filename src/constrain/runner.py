@@ -1,37 +1,38 @@
-import uuid
-import time
-import random
 import logging
+import random
+import time
+import uuid
+
 import numpy as np
 from datasets import load_dataset
 from tqdm.auto import tqdm
 
-from constrain.data.memory import Memory
+from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
+from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
+from constrain.analysis.stage3.signal_discovery_service import \
+    SignalDiscoveryService
+from constrain.analysis.visualization.dashboard_exporter import \
+    DashboardExporter
 from constrain.config import get_config
+from constrain.data.memory import Memory
+from constrain.data.schemas.intervention import InterventionDTO
+from constrain.data.schemas.run import RunDTO
+from constrain.data.schemas.step import StepDTO
+from constrain.energy.embedding.hf_embedder import HFEmbedder
+from constrain.energy.embedding.sqlite_embedding_backend import \
+    SQLiteEmbeddingBackend
+from constrain.energy.gate import VerifiabilityGate
+from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
+from constrain.energy.utils.text_utils import split_into_sentences
 from constrain.model import call_model
 from constrain.policy.apply_policy import apply_policy
 from constrain.reasoning_state import ReasoningState
-from constrain.energy.utils.text_utils import split_into_sentences
-
-from constrain.data.schemas.run import RunDTO
-from constrain.data.schemas.step import StepDTO
-from constrain.data.schemas.intervention import InterventionDTO
-
-from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
-from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
-from constrain.analysis.visualization.dashboard_exporter import DashboardExporter
-from constrain.analysis.stage3.signal_discovery_service import SignalDiscoveryService
-
-from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
-from constrain.energy.embedding.hf_embedder import HFEmbedder
-from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
-from constrain.energy.gate import VerifiabilityGate
 from constrain.utils.dict_utils import flatten_numeric_dict
 
 logger = logging.getLogger(__name__)
 
 
-def run(policy_id: int = 4, seed: int = 42) -> str:
+def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold: float = None) -> str:
 
     start_time = time.time()
     logger.debug("=" * 60)
@@ -78,7 +79,7 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
         run_id=run_id,
         model_name=cfg.model_name,
         initial_temperature=cfg.initial_temperature,
-        num_problems=cfg.num_problems,
+        num_problems=num_problems or cfg.num_problems,
         num_recursions=cfg.num_recursions,
         tau_soft=cfg.tau_soft,
         tau_medium=cfg.tau_medium,
@@ -217,6 +218,7 @@ def run(policy_id: int = 4, seed: int = 42) -> str:
                     state=state,
                     memory=memory,
                     run_id=run_id,
+                    threshold=threshold,
                 )
                 logger.debug("Policy decision: action=%s, new_temperature=%.2f", action, new_temperature)
 

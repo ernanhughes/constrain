@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import random
 import os
-from typing import Tuple, Dict, Optional
+import random
+from typing import Dict, Optional, Tuple
 
+from constrain.calibration.recursive import RecursiveCalibrator
 from constrain.config import get_config
 from constrain.data.memory import Memory
-from constrain.calibration.recursive import RecursiveCalibrator
+from constrain.policy.learned_policy import LearnedPolicy
 from constrain.reasoning_state import ReasoningState
 
 _learned_policy_instance = None
@@ -33,29 +34,30 @@ def _get_thresholds(cfg, memory: Memory, run_id: str):
 # Learned Policy Loader (Singleton)
 # ============================================================
 
-def _get_learned_policy():
+def _get_learned_policy(threshold: float = None) -> Optional[LearnedPolicy]:
     global _learned_policy_instance
-
-    if _learned_policy_instance is not None:
-        return _learned_policy_instance
 
     cfg = get_config()
 
     if not hasattr(cfg, "learned_model_path"):
+        print("No learned_model_path in config, skipping learned policy.")
         return None
 
     if not os.path.exists(cfg.learned_model_path):
+        print(f"Learned model not found at {cfg.learned_model_path}, skipping learned policy.")
         return None
 
-    from constrain.policy.learned_policy import LearnedPolicy
-
-    _learned_policy_instance = LearnedPolicy(
-        model_path=cfg.learned_model_path,
-        threshold=cfg.learned_policy_threshold,
-    )
+    if _learned_policy_instance is None:
+        _learned_policy_instance = LearnedPolicy(
+            model_path=cfg.learned_model_path,
+            threshold=threshold if threshold is not None else cfg.learned_policy_threshold,
+        )
+    else:
+        # 🔥 critical: update threshold dynamically
+        if threshold is not None:
+            _learned_policy_instance.set_threshold(threshold)
 
     return _learned_policy_instance
-
 
 # ============================================================
 # Main Policy Dispatcher
@@ -69,6 +71,7 @@ def apply_policy(
     state: ReasoningState,
     memory: Memory,
     run_id: str,
+    threshold: float = None
 ) -> Tuple[str, float, Optional[float]]:
 
     cfg = get_config()
@@ -197,11 +200,12 @@ def apply_policy(
 
     elif policy_id == 99:
 
-        learned_policy = _get_learned_policy()
+        learned_policy = _get_learned_policy(threshold=threshold)
 
         if learned_policy is not None:
 
             action, collapse_prob = learned_policy.decide(flat_metrics)
+            print("DEBUG collapse_prob:", collapse_prob)
 
             if not cfg.learned_policy_shadow:
                 if action == "REVERT":

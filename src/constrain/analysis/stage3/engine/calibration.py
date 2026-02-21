@@ -1,7 +1,9 @@
 # analysis/stage3/engine/calibration.py
 
 from __future__ import annotations
-from typing import Dict, Any
+
+from typing import Any, Dict
+
 import numpy as np
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss

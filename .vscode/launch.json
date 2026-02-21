@@ -22,5 +22,23 @@
             "args": [
             ]
         },
+        {
+            "name": "threshold_sweep",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.analysis.stage2.threshold_sweep",
+            "args": [
+            ]
+        },
+        {
+            "name": "train_learned_policy",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.policy.train_learned_policy",
+            "args": [
+            ]
+        },
     ]
 }

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, Integer, Text
+from sqlalchemy import Column, Float, ForeignKey, Integer, Text
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base
@@ -38,3 +38,7 @@ class RunORM(Base):
     tau_medium_calibrated = Column(Float, nullable=True)
     tau_hard_calibrated = Column(Float, nullable=True)
     seed = Column(Integer, nullable=True)
+
+    # Add to RunORM class:
+    experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=True)
+    experiment = relationship("ExperimentORM", back_populates="runs")

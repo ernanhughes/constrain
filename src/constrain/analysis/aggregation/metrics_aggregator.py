@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Optional
+
+import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
-import numpy as np
+
 from constrain.config import get_config
 from constrain.data.memory import Memory
 

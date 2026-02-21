@@ -1,5 +1,6 @@
-from constrain.data.memory import Memory
 from constrain.analysis.policy_replay import PolicyReplayService
+from constrain.data.memory import Memory
+
 
 def main():
 

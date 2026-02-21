@@ -1,10 +1,11 @@
-import pandas as pd
-from constrain.runner import run
-from constrain.analysis.stage2.application_evaluator import ApplicationEvaluator
-from constrain.data.memory import Memory
-from constrain.config import get_config
-
 import numpy as np
+import pandas as pd
+
+from constrain.analysis.stage2.application_evaluator import \
+    ApplicationEvaluator
+from constrain.config import get_config
+from constrain.data.memory import Memory
+from constrain.runner import run
 
 
 def bootstrap_diff(a, b, n=2000, seed=42):

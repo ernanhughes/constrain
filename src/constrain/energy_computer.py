@@ -1,13 +1,13 @@
 # energy.py
 from __future__ import annotations
 
-
 import numpy as np
 
-from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
-from constrain.energy.embedding.hf_embedder import HFEmbedder
-from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
 from constrain.config import get_config
+from constrain.energy.embedding.hf_embedder import HFEmbedder
+from constrain.energy.embedding.sqlite_embedding_backend import \
+    SQLiteEmbeddingBackend
+from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
 
 # ======================================================

@@ -14,12 +14,12 @@ Features:
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
 import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -191,7 +191,7 @@ class ConstrainConfig:
         base_dir.mkdir(parents=True, exist_ok=True)
         logs_dir = base_dir / "logs"
         plots_dir = base_dir / "plots"
-        models_dir = base_dir / "models"
+        models_dir = home_dir / "models"
         reports_dir = base_dir / "reports"
         learned_model_path = models_dir / "learned_policy.joblib"
 

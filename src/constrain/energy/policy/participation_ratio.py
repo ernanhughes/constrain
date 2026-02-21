@@ -2,6 +2,7 @@ from ..axes.bundle import AxisBundle
 from ..custom_types import Verdict
 from .base import PolicyLike, get_axis, missing_to_review
 
+
 class ParticipationRatioOnlyPolicy(PolicyLike):
     """
     Energy-free ablation:

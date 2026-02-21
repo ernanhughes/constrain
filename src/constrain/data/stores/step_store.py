@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from sqlalchemy import and_
+import pandas as pd
+from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import func
 
+from constrain.data.orm.run import RunORM
 from constrain.data.orm.step import StepORM
 from constrain.data.schemas.step import StepDTO
 from constrain.data.stores.base_store import BaseSQLAlchemyStore
@@ -124,4 +125,58 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
             if limit:
                 q = q.limit(limit)
             return [row[0] for row in q.all()]
+        return self._run(op)
+    
+
+    def get_recent_unique_steps(
+        self,
+        limit: int = 50000,
+        exclude_policy_ids: list[int] | None = None,
+    ):
+
+        def op(session):
+
+            query = (
+                session.query(StepORM)
+                .join(RunORM, StepORM.run_id == RunORM.run_id)
+                .order_by(desc(StepORM.timestamp))
+            )
+
+            if exclude_policy_ids:
+                query = query.filter(~RunORM.policy_id.in_(exclude_policy_ids))
+
+            rows = query.limit(limit * 3).all()  
+            # Pull extra because we'll deduplicate
+
+            data = [
+                {
+                    "run_id": r.run_id,
+                    "problem_id": r.problem_id,
+                    "iteration": r.iteration,
+                    "timestamp": r.timestamp,
+                    "policy_action": r.policy_action,
+                    "reasoning_text": r.reasoning_text,
+                    "total_energy": r.total_energy,
+                    "accuracy": r.accuracy,
+                    "collapse_probability": r.collapse_probability,
+                    "temperature": r.temperature,
+                    "gold_answer": r.gold_answer,
+                    "extracted_answer": r.extracted_answer,
+                }
+                for r in rows
+            ]
+
+            df = pd.DataFrame(data)
+
+            if df.empty:
+                return df
+
+            # Deduplicate by reasoning text
+            df = df.drop_duplicates(subset=["reasoning_text"])
+
+            # Keep most recent only
+            df = df.sort_values("timestamp", ascending=False)
+
+            return df.head(limit)
+
         return self._run(op)

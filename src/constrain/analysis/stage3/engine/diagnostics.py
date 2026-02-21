@@ -1,10 +1,11 @@
 # src/constrain/analysis/stage3/engine/diagnostics.py
 
 from __future__ import annotations
-from typing import Dict, Any, List, Tuple
+
+from collections import Counter
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from collections import Counter
 
 from .calibration import ProbabilityCalibration
 

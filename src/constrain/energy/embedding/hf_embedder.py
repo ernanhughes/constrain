@@ -3,10 +3,10 @@ from typing import List
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from transformers import logging as hf_logging
 
 from ..protocols.embedding_backend import EmbeddingBackend
 
-from transformers import logging as hf_logging
 hf_logging.set_verbosity_error()
 logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
 logging.getLogger("transformers").setLevel(logging.ERROR)

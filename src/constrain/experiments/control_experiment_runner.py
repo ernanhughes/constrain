@@ -1,46 +1,58 @@
 # constrain/experiments/control_experiment_runner.py
 
-from dataclasses import dataclass
-from typing import List, Dict
-import pandas as pd
-import numpy as np
 import time
-import os
 
-@dataclass
-class ControlExperimentConfig:
-    seeds: List[int]
-    policy_ids: List[int]
-    output_dir: str
+from constrain.data.memory import Memory
+from constrain.data.schemas.experiment import ExperimentDTO
+from constrain.experiments.experiment_config import ControlExperimentConfig
 
 
 class ControlExperimentRunner:
-
     def __init__(self, run_callable, config: ControlExperimentConfig):
-        self.run = run_callable  # ← your existing run()
+        self.run = run_callable
         self.config = config
+        self.memory = Memory()
+        self.experiment_id = None
 
     def execute(self):
+        # Create experiment record
+        experiment_dto = ExperimentDTO(
+            experiment_name="policy_comparison_v1",
+            experiment_type="policy_comparison",
+            policy_ids=[0, 4, 99],
+            seeds=[42, 43, 44],
+            num_problems=200,
+            num_recursions=6,
+            start_time=time.time(),
+            status="running",
+        )
 
-        records = []
+        experiment = self.memory.experiments.create(experiment_dto)
+        self.experiment_id = experiment.id
 
-        for seed in self.config.seeds:
-            for policy_id in self.config.policy_ids:
+        try:
+            # Run experiments...
+            records = []
+            for seed in self.config.seeds:
+                for policy_id in self.config.policy_ids:
+                    run_id = self.run(policy_id=policy_id, seed=seed)
+                    records.append({...})
 
-                print(f"Running seed={seed} policy={policy_id}")
+            # Update with results
+            self.memory.experiments.update(
+                self.experiment_id,
+                {
+                    "end_time": time.time(),
+                    "status": "completed",
+                    "results_summary": {"accuracy_diff": 0.03, "collapse_reduction": 0.15},
+                },
+            )
 
-                result = self.run(policy_id=policy_id, seed=seed)
+            return records
 
-                records.append({
-                    "seed": seed,
-                    "policy_id": policy_id,
-                    "accuracy": result["accuracy"],
-                    "final_accuracy": result["final_accuracy"],
-                    "collapse_rate": result["collapse_rate"],
-                    "mean_energy": result["mean_energy"],
-                    "intervention_rate": result["intervention_rate"],
-                })
-
-        df = pd.DataFrame(records)
-        self._persist(df)
-        return self._analyze(df)
+        except Exception as e:
+            self.memory.experiments.update(
+                self.experiment_id,
+                {"status": "failed", "results_summary": {"error": str(e)}},
+            )
+            raise

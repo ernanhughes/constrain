@@ -1,9 +1,10 @@
 # analysis/stage3/escalation_signal_discovery.py
 
 from __future__ import annotations
+
 import numpy as np
-from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GroupKFold
 from xgboost import XGBClassifier
 
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator

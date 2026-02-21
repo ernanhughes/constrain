@@ -1,9 +1,11 @@
-from constrain.data.orm.signal_report import SignalReportORM
-from constrain.data.schemas.signal_report import SignalReportDTO
-from constrain.data.stores.base_store import BaseSQLAlchemyStore
 from typing import Any, Optional
 
 from sqlalchemy.orm import sessionmaker
+
+from constrain.data.orm.signal_report import SignalReportORM
+from constrain.data.schemas.signal_report import SignalReportDTO
+from constrain.data.stores.base_store import BaseSQLAlchemyStore
+
 
 class SignalReportStore(BaseSQLAlchemyStore):
     orm_model = SignalReportORM

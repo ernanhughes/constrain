@@ -1,5 +1,6 @@
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
-from constrain.analysis.stage3.engine.signal_modeling_engine import SignalModelingEngine
+from constrain.analysis.stage3.engine.signal_modeling_engine import \
+    SignalModelingEngine
 
 
 class CollapseSignalDiscovery:

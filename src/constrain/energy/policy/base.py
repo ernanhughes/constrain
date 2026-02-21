@@ -1,7 +1,8 @@
+from typing import Optional
+
 from ..axes.bundle import AxisBundle
 from ..custom_types import Verdict
 
-from typing import Optional
 
 class PolicyLike:
     tau_accept: float | None = None

@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 from typing import List
-from dataclasses import dataclass These are horrible babe like that standard
+
 
 @dataclass
 class ControlExperimentConfig:

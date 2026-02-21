@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Dict, Tuple
+
 import joblib
 import numpy as np
-from typing import Dict, Tuple
 
 
 class LearnedPolicy:

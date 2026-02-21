@@ -1,10 +1,11 @@
-from typing import Dict, Any
+from typing import Any, Dict
+
 import pandas as pd
 
 from .drift_analyzer import DriftAnalyzer
 from .intervention_analyzer import InterventionAnalyzer
-from .predictive_analyzer import PredictiveAnalyzer
 from .phase_transition_analyzer import PhaseTransitionAnalyzer
+from .predictive_analyzer import PredictiveAnalyzer
 
 
 class ScientificReportBuilder:

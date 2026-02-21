@@ -1,5 +1,7 @@
 import os
+
 from constrain.utils.json_utils import dumps_safe
+
 
 class DashboardExporter:
 

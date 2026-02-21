@@ -1,14 +1,7 @@
 # data/orm/problem_summary.py
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Boolean,
-    Float,
-    ForeignKey,
-    Index,
-)
+from sqlalchemy import (Boolean, Column, Float, ForeignKey, Index, Integer,
+                        String)
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base

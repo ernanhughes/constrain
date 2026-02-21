@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import List, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Sequence
 
 from .base import PolicyLike
 
 if TYPE_CHECKING:
-    from .energy_only import EnergyOnlyPolicy
-    from .participation_ratio import ParticipationRatioOnlyPolicy
-    from .sensitivity import SensitivityOnlyPolicy
     from .axes import AxisOnlyPolicy
     from .axes_energy import AxisFirstThenEnergyPolicy
+    from .energy_only import EnergyOnlyPolicy
     from .monotone import MonotoneAdaptivePolicy
+    from .participation_ratio import ParticipationRatioOnlyPolicy
+    from .sensitivity import SensitivityOnlyPolicy
 
 
 def build_policy(

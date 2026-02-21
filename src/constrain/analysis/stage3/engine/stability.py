@@ -1,10 +1,11 @@
 # analysis/stage3/engine/stability.py
 
 from __future__ import annotations
-from typing import Dict, Any, List
-import numpy as np
-from collections import Counter
 
+from collections import Counter
+from typing import Any, Dict, List
+
+import numpy as np
 
 
 class SignalStabilityAnalyzer:
