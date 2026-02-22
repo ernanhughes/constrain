@@ -92,7 +92,7 @@ class PolicyRegistry:
         )
 
         if policy_id == 0:
-            return BaselineAcceptPolicy()
+            return BaselineAcceptPolicy(params=params)
 
         if policy_id == 1:
             return SimpleRevertPolicy(params=params)
@@ -128,6 +128,7 @@ class PolicyRegistry:
                 raise ValueError("Learned policy selected but model not loaded.")
 
             return LearnedPolicyWrapper(
+                params=params,
                 learned_model=self.learned_model,
                 shadow=self.learned_shadow,
             )

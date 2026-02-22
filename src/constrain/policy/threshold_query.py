@@ -20,9 +20,9 @@ class ThresholdQuery:
     require_correctness_nonnull: bool = False    # optional
 
     # Quantiles
-    q_soft: float = 0.80
-    q_medium: float = 0.90
-    q_hard: float = 0.97
+    q_soft: float = 0.90
+    q_medium: float = 0.97
+    q_hard: float = 0.995
 
     # Safety
     min_samples: int = 20                       # avoid tiny-n collapse

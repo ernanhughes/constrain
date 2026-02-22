@@ -28,6 +28,7 @@ from constrain.model import call_model
 from constrain.reasoning_state import ReasoningState
 from constrain.utils.dict_utils import flatten_numeric_dict
 from constrain.policy.engine import PolicyEngine
+from constrain.policy.custom_types import Thresholds, PolicyDecision
 from constrain.policy.thresholds import CalibrationThresholdProvider
 
 logger = logging.getLogger(__name__)
@@ -220,7 +221,7 @@ def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold:
                 # -----------------------------
                 # POLICY
                 # -----------------------------
-                decision = engine.apply(
+                decision: PolicyDecision = engine.apply(
                     axes=axes,
                     flat_metrics=flat_metrics,
                     state=state,

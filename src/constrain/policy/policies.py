@@ -1,181 +1,153 @@
+# constrain/policy/policies.py
 from __future__ import annotations
-from dataclasses import dataclass
 
-from .custom_types import Policy, PolicyDecision, Thresholds
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Protocol
+
 from constrain.reasoning_state import ReasoningState
+from .custom_types import Policy, PolicyDecision, Thresholds
 from .policy_params import PolicyParams
 
 
+Axes = Dict[str, Any]
+Metrics = Dict[str, Any]
+
+
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
+def _energy(axes: Axes) -> float:
+    return float(axes.get("energy", 0.0))
+
+
+# ------------------------------------------------------------
+# Policies
+# ------------------------------------------------------------
+
 @dataclass
-class BaselineAcceptPolicy:
+class BaselineAcceptPolicy(Policy):
+    params: PolicyParams
     policy_id: int = 0
     name: str = "accept_all"
 
-    def decide(
-        self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds
-    ) -> PolicyDecision:
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        return PolicyDecision(action="ACCEPT", new_temperature=state.temperature)
+
+
+@dataclass
+class SimpleRevertPolicy(Policy):
+    params: PolicyParams
+    policy_id: int = 1
+    name: str = "simple_revert"
+
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
         return PolicyDecision(
-            action="ACCEPT",
-            new_temperature=state.temperature,
+            action="REVERT",
+            new_temperature=max(self.params.min_temperature, state.temperature * self.params.revert_cooldown_factor),
         )
 
 
 @dataclass
-class AggressiveRevertPolicy:
+class RevertCoolPolicy(Policy):
+    params: PolicyParams
+    policy_id: int = 2
+    name: str = "revert_cool"
+
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        # Same as SimpleRevert right now; you can differentiate later via params
+        return PolicyDecision(
+            action="REVERT",
+            new_temperature=max(self.params.min_temperature, state.temperature * self.params.revert_cooldown_factor),
+        )
+
+
+@dataclass
+class AggressiveRevertPolicy(Policy):
     params: PolicyParams
     policy_id: int = 3
     name: str = "aggressive_revert"
 
-    def decide(
-        self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds
-    ) -> PolicyDecision:
-        e = float(axes.get("energy", 0.0))
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        e = _energy(axes)
         t = state.temperature
 
-        action = "ACCEPT"
-        new_t = t
+        if e <= thresholds.tau_soft:
+            return PolicyDecision(action="ACCEPT", new_temperature=t, meta={"energy": e})
 
-        if e > thresholds.tau_soft:
-            action = "REVERT"
+        # REVERT path
+        if e > thresholds.tau_medium:
+            new_t = max(self.params.min_temperature, t * self.params.aggressive_cooldown_factor)
+        else:
+            new_t = max(self.params.min_temperature, t * self.params.revert_cooldown_factor)
 
-            if e > thresholds.tau_medium:
-                new_t = max(
-                    self.params.min_temperature,
-                    t * self.params.aggressive_cooldown_factor,
-                )
-            else:
-                new_t = max(
-                    self.params.min_temperature,
-                    t * self.params.revert_cooldown_factor,
-                )
-
-        return PolicyDecision(
-            action=action,
-            new_temperature=new_t,
-            meta={"energy": e},
-        )
+        return PolicyDecision(action="REVERT", new_temperature=new_t, meta={"energy": e})
 
 
 @dataclass
-class HardResetPolicy:
+class HardResetPolicy(Policy):
     params: PolicyParams
     policy_id: int = 4
     name: str = "hard_reset"
 
-    def decide(
-        self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds
-    ) -> PolicyDecision:
-        e = float(axes.get("energy", 0.0))
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        e = _energy(axes)
         t = state.temperature
 
         if e > thresholds.tau_hard:
             return PolicyDecision(
                 action="RESET",
-                new_temperature=max(
-                    self.params.min_temperature,
-                    t * self.params.reset_cooldown_factor,
-                ),
+                new_temperature=max(self.params.min_temperature, t * self.params.reset_cooldown_factor),
                 meta={"energy": e},
             )
 
         return PolicyDecision(
             action="REVERT",
-            new_temperature=max(
-                self.params.min_temperature,
-                t * self.params.revert_cooldown_factor,
-            ),
+            new_temperature=max(self.params.min_temperature, t * self.params.revert_cooldown_factor),
             meta={"energy": e},
         )
 
 
 @dataclass
-class SimpleRevertPolicy:
-    params: PolicyParams
-    policy_id: int = 1
-    name: str = "simple_revert"
-
-    def decide(self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
-        return PolicyDecision(
-            action="REVERT",
-            new_temperature=max(
-                self.params.min_temperature,
-                state.temperature * self.params.revert_cooldown_factor,
-            ),
-        )
-
-
-@dataclass
-class RevertCoolPolicy:
-    params: PolicyParams
-    policy_id: int = 2
-    name: str = "revert_cool"
-
-    def decide(
-        self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds
-    ) -> PolicyDecision:
-        return PolicyDecision(
-            action="REVERT",
-            new_temperature=max(
-                self.params.min_temperature,
-                state.temperature * self.params.revert_cooldown_factor,
-            ),
-        )
-
-
-@dataclass
-class MediumResetPolicy:
+class MediumResetPolicy(Policy):
     params: PolicyParams
     policy_id: int = 5
     name: str = "medium_reset"
 
-    def decide(
-        self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds
-    ) -> PolicyDecision:
-        e = float(axes.get("energy", 0.0))
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        e = _energy(axes)
         t = state.temperature
 
-        if e > thresholds.tau_medium:
-            action = "RESET"
-        else:
-            action = "REVERT"
+        action = "RESET" if e > thresholds.tau_medium else "REVERT"
 
         return PolicyDecision(
             action=action,
-            new_temperature=max(
-                self.params.min_temperature,
-                t * self.params.revert_cooldown_factor,
-            ),
+            new_temperature=max(self.params.min_temperature, t * self.params.revert_cooldown_factor),
             meta={"energy": e},
         )
 
+
 @dataclass
-class RandomPolicy:
+class RandomPolicy(Policy):
     params: PolicyParams
     revert_probability: float
     policy_id: int = 6
     name: str = "random"
 
-    def decide(self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
-
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
         import random
 
-        if random.random() < self.revert_probability:
+        if random.random() < float(self.revert_probability):
             return PolicyDecision(
                 action="REVERT",
-                new_temperature=max(
-                    self.params.min_temperature,
-                    state.temperature * self.params.revert_cooldown_factor,
-                ),
+                new_temperature=max(self.params.min_temperature, state.temperature * self.params.revert_cooldown_factor),
             )
 
-        return PolicyDecision(
-            action="ACCEPT",
-            new_temperature=state.temperature,
-        )
-    
+        return PolicyDecision(action="ACCEPT", new_temperature=state.temperature)
+
 
 @dataclass
-class GeometryBandPolicy:
+class GeometryBandPolicy(Policy):
     params: PolicyParams
     pr_threshold: float
     sensitivity_threshold: float
@@ -183,45 +155,61 @@ class GeometryBandPolicy:
     policy_id: int = 8
     name: str = "geometry_band"
 
-    def decide(self, *, axes, metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
-
-        e = float(axes.get("energy", 0.0))
+    def decide(self, *, axes: Axes, metrics: Metrics, state: ReasoningState, thresholds: Thresholds) -> PolicyDecision:
+        e = _energy(axes)
         pr = float(axes.get("participation_ratio", 0.0))
         sens = float(axes.get("sensitivity", 0.0))
 
-        gap = thresholds.tau_soft * self.band_width_factor
+        gap = thresholds.tau_soft * float(self.band_width_factor)
         low = thresholds.tau_soft - gap
         high = thresholds.tau_soft + gap
 
         if e >= high:
             action = "REVERT"
-        elif e > low and (pr > self.pr_threshold or sens > self.sensitivity_threshold):
+        elif e > low and (pr > float(self.pr_threshold) or sens > float(self.sensitivity_threshold)):
             action = "REVERT"
         else:
             action = "ACCEPT"
 
-        return PolicyDecision(
-            action=action,
-            new_temperature=state.temperature,
-            meta={"energy": e, "pr": pr, "sens": sens},
-        )
-    
+        # NOTE: if you want cooling on REVERT here, do it via params (like others)
+        new_t = state.temperature
+        if action == "REVERT":
+            new_t = max(self.params.min_temperature, state.temperature * self.params.revert_cooldown_factor)
+
+        return PolicyDecision(action=action, new_temperature=new_t, meta={"energy": e, "pr": pr, "sens": sens})
+
+
+@dataclass
 class LearnedPolicyWrapper(Policy):
+    """
+    Wraps your LearnedPolicy model, but returns PolicyDecision and uses params for temperature logic.
+    """
+    params: PolicyParams
+    learned_model: Any
+    shadow: bool = False
+    policy_id: int = 99
+    name: str = "learned"
 
-    def __init__(self, learned_model, shadow=False):
-        self.model = learned_model
-        self.shadow = shadow
+    def decide(self, *, axes: Axes, metrics: Metrics, thresholds: Thresholds, state: ReasoningState) -> PolicyDecision:
+        action, collapse_prob = self.learned_model.decide(metrics)
 
-    def decide(self, *, axes, flat_metrics, thresholds, state):
-
-        action, collapse_prob = self.model.decide(flat_metrics)
-
+        # shadow = observe but do not intervene
         if self.shadow:
-            return "ACCEPT", state.temperature, collapse_prob
+            return PolicyDecision(
+                action="ACCEPT",
+                new_temperature=state.temperature,
+                collapse_probability=collapse_prob,
+                meta={"shadow_action": action},
+            )
 
         new_temperature = state.temperature
-
         if action == "REVERT":
-            new_temperature = max(0.1, state.temperature * 0.9)
+            new_temperature = max(self.params.min_temperature, state.temperature * self.params.revert_cooldown_factor)
+        elif action == "RESET":
+            new_temperature = max(self.params.min_temperature, state.temperature * self.params.reset_cooldown_factor)
 
-        return action, new_temperature, collapse_prob
+        return PolicyDecision(
+            action=action,
+            new_temperature=new_temperature,
+            collapse_probability=collapse_prob,
+        )

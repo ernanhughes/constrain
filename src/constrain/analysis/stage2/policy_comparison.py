@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from constrain.analysis.stage2.application_evaluator import \
-    ApplicationEvaluator
+from constrain.analysis.stage2.application_evaluator import ApplicationEvaluator
 from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.runner import run
@@ -12,12 +11,16 @@ def bootstrap_diff(a, b, n=2000, seed=42):
     rng = np.random.RandomState(seed)
     diffs = []
 
-    a = np.array(a)
-    b = np.array(b)
+    a = np.array(a, dtype=float)
+    b = np.array(b, dtype=float)
+
+    if len(a) == 0 or len(b) == 0:
+        return {"mean_diff": np.nan, "ci_lower": np.nan, "ci_upper": np.nan}
 
     for _ in range(n):
-        idx = rng.choice(len(a), len(a), replace=True)
-        diffs.append(a[idx].mean() - b[idx].mean())
+        idx_a = rng.choice(len(a), len(a), replace=True)
+        idx_b = rng.choice(len(b), len(b), replace=True)
+        diffs.append(a[idx_a].mean() - b[idx_b].mean())
 
     lower = np.percentile(diffs, 2.5)
     upper = np.percentile(diffs, 97.5)
@@ -29,107 +32,143 @@ def bootstrap_diff(a, b, n=2000, seed=42):
     }
 
 
-def compare_policies(policy_ids, seeds=(42, 43, 44)):
+def _collapsed_flags_from_steps(steps_df: pd.DataFrame) -> pd.Series:
+    """
+    Returns a boolean Series indexed by problem_id indicating if that problem "collapsed".
 
-    all_results = []
+    Priority order:
+      1) collapse_probability column (>=0.5 considered collapsed)
+      2) phase column containing 'collapse'
+      3) fallback: all False
+    """
+    if steps_df.empty:
+        return pd.Series(dtype=bool)
+
+    if "collapse_probability" in steps_df.columns and steps_df["collapse_probability"].notna().any():
+        return (
+            steps_df.groupby("problem_id")["collapse_probability"]
+            .apply(lambda x: (x.fillna(0.0) >= 0.5).any())
+        )
+
+    if "phase" in steps_df.columns:
+        return (
+            steps_df.groupby("problem_id")["phase"]
+            .apply(lambda x: (x.astype(str) == "collapse").any())
+        )
+
+    return pd.Series(False, index=steps_df["problem_id"].unique())
+
+
+def compare_policies(policy_ids, seeds=(42, 43, 44), num_problems: int | None = None):
+    cfg = get_config()
+    memory = Memory(cfg.db_url)
+    evaluator = ApplicationEvaluator(memory)
+
+    all_rows = []
 
     for seed in seeds:
-
         print("\n==============================")
         print(f"Running seed {seed}")
         print("==============================")
 
         for pid in policy_ids:
-
             print(f"\n🚀 Policy {pid} (seed={seed})")
 
-            run_id = run(policy_id=pid, seed=seed)
+            # ---------------------------------------------------------
+            # Run experiment
+            # ---------------------------------------------------------
+            try:
+                run_id = run(policy_id=pid, seed=seed, num_problems=num_problems)
+            except Exception as e:
+                print(f"⚠ Run failed for policy {pid}, seed {seed}: {e}")
+                continue
 
-            memory = Memory(get_config().db_url)
-            evaluator = ApplicationEvaluator(memory)
-
-            summary, problem_df = evaluator.evaluate_run(run_id)
+            # ---------------------------------------------------------
+            # Evaluate run (robust)
+            # ---------------------------------------------------------
+            try:
+                summary, problem_df = evaluator.evaluate_run(run_id)
+            except Exception as e:
+                print(f"⚠ Evaluation failed for run {run_id}: {e}")
+                continue
 
             summary["policy_id"] = pid
             summary["seed"] = seed
+            summary["run_id"] = run_id
 
-            # Store per-problem correctness for bootstrap
-            summary["_per_problem_correct"] = problem_df["final_correct"].values
+            # Per-problem correctness for bootstrap
+            if "final_correct" in problem_df.columns:
+                summary["_per_problem_correct"] = problem_df["final_correct"].values.astype(float)
+            else:
+                summary["_per_problem_correct"] = np.array([], dtype=float)
 
-            steps = memory.steps.get_by_run(run_id)
-    
+            # ---------------------------------------------------------
+            # Collapse per-problem (from steps)
+            # ---------------------------------------------------------
+            try:
+                steps = memory.steps.get_by_run(run_id)
+                steps_df = pd.DataFrame([s.model_dump() for s in steps])
+            except Exception as e:
+                print(f"⚠ Could not load steps for run {run_id}: {e}")
+                steps_df = pd.DataFrame()
 
-            steps_df = pd.DataFrame([s.model_dump() for s in steps])
+            collapsed_per_problem = _collapsed_flags_from_steps(steps_df)
 
-            collapsed_per_problem = (
-                steps_df.groupby("problem_id")["phase"]
-                .apply(lambda x: (x == "collapse").any())
-            )
+            if not collapsed_per_problem.empty and "problem_id" in problem_df.columns:
+                problem_df["collapsed"] = problem_df["problem_id"].map(collapsed_per_problem).fillna(False)
+                summary["collapse_rate"] = float(problem_df["collapsed"].mean())
+            else:
+                summary["collapse_rate"] = float("nan")
 
-            problem_df["collapsed"] = problem_df["problem_id"].map(collapsed_per_problem)
-            problem_df["collapsed"] = problem_df["collapsed"].fillna(False) 
+            # Store
+            all_rows.append(summary)
 
+    if len(all_rows) == 0:
+        print("❌ No successful runs.")
+        return pd.DataFrame()
 
-
-            all_results.append(summary)
-
-    df = pd.DataFrame(all_results)
+    df = pd.DataFrame(all_rows)
 
     print("\n==============================")
     print("Raw Results")
     print("==============================")
-    print(df.drop(columns=["_per_problem_correct"]))
+    display_cols = [c for c in df.columns if c != "_per_problem_correct"]
+    print(df[display_cols])
 
     # ---------------------------------------------------------
-    # Statistical Comparison
+    # Statistical Comparisons (bootstrap)
     # ---------------------------------------------------------
+    def _collect(policy_id: int) -> np.ndarray:
+        sub = df[df["policy_id"] == policy_id]
+        if len(sub) == 0:
+            return np.array([], dtype=float)
+        return np.concatenate(sub["_per_problem_correct"].values)
 
-    baseline = df[df["policy_id"] == 0]
-    heuristic = df[df["policy_id"] == 4]
-    learned = df[df["policy_id"] == 99]
+    baseline_correct = _collect(0)
 
-    if len(learned) > 0 and len(baseline) > 0:
+    # Compare each non-baseline to baseline
+    for pid in policy_ids:
+        if pid == 0:
+            continue
+        cur = _collect(pid)
+        if len(cur) == 0 or len(baseline_correct) == 0:
+            print(f"\n(pid={pid}) Skipping bootstrap (missing data).")
+            continue
 
-        learned_correct = np.concatenate(learned["_per_problem_correct"].values)
-        baseline_correct = np.concatenate(baseline["_per_problem_correct"].values)
-
-        learned_vs_baseline = bootstrap_diff(
-            learned_correct,
-            baseline_correct
-        )
-
-        print("\nLearned vs Baseline:")
-        print(learned_vs_baseline)
-
-    if len(learned) > 0 and len(heuristic) > 0:
-
-        heuristic_correct = np.concatenate(heuristic["_per_problem_correct"].values)
-
-        learned_vs_heuristic = bootstrap_diff(
-            learned_correct,
-            heuristic_correct
-        )
-
-        print("\nLearned vs Heuristic:")
-        print(learned_vs_heuristic)
+        stats = bootstrap_diff(cur, baseline_correct)
+        print(f"\nPolicy {pid} vs Baseline (0):")
+        print(stats)
 
     return df
 
 
-# ==========================================================
-# Main Entry
-# ==========================================================
-
 if __name__ == "__main__":
-
-    # Policies to compare
-    # 0 = baseline
-    # 4 = heuristic energy
-    # 99 = learned policy
-    policies = [0, 4, 99]
-
-    # Seeds for robustness
+    policies = [0, 4, 99]  # baseline, heuristic, learned
     seeds = (42, 43, 44)
+
+    # You can tune this without touching TOML
+    # (use None to fall back to cfg.num_problems)
+    num_problems = 20
 
     print("\n======================================")
     print(" Running Policy Comparison Experiment ")
@@ -138,14 +177,14 @@ if __name__ == "__main__":
     df = compare_policies(
         policy_ids=policies,
         seeds=seeds,
+        num_problems=num_problems,
     )
 
     print("\n======================================")
     print(" Experiment Complete ")
     print("======================================")
 
-    # Optional: save results
-    output_path = "policy_experiment_results.csv"
-    df.drop(columns=["_per_problem_correct"]).to_csv(output_path, index=False)
-
-    print(f"\nResults saved to {output_path}")
+    if not df.empty:
+        output_path = "policy_experiment_results.csv"
+        df.drop(columns=["_per_problem_correct"], errors="ignore").to_csv(output_path, index=False)
+        print(f"\nResults saved to {output_path}")
