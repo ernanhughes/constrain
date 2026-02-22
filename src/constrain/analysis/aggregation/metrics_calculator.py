@@ -2,7 +2,7 @@
 
 import re
 import unicodedata
-from typing import Dict
+from typing import Dict, Optional
 
 
 class MetricsCalculator:
@@ -100,7 +100,7 @@ class MetricsCalculator:
     def compute_all(
         cls,
         reasoning: str,
-        gold_answer: str,
+        gold_answer: Optional[str],
         energy_metrics: Dict[str, float],
         cfg,
     ) -> Dict[str, float]:
@@ -111,7 +111,16 @@ class MetricsCalculator:
             "repetition_score": cls.repetition_score(reasoning),
         }
 
-        accuracy_metrics = cls.compute_accuracy(reasoning, gold_answer)
+        # For open-ended long-horizon conversations, we often have no gold answers.
+        # In that case, skip accuracy and leave placeholders.
+        if gold_answer is None:
+            accuracy_metrics = {
+                "accuracy": float("nan"),
+                "correctness": None,
+                "extracted_answer": None,
+            }
+        else:
+            accuracy_metrics = cls.compute_accuracy(reasoning, gold_answer)
 
         energy = energy_metrics.get("value", 0.0)
         phase_label = cls.compute_phase_label(

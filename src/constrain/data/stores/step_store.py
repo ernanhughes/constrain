@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from typing import Any, List, Optional
-import math
+
 import pandas as pd
-from sqlalchemy import and_, desc, func, Integer, asc
+from sqlalchemy import and_, desc, func, Integer
 from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM
@@ -201,6 +201,7 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
         We avoid window functions for SQLite portability and correctness.
         Quantiles are computed by selecting the k-th ordered energy using OFFSET.
         """
+
         def clamp01(x: float) -> float:
             return max(0.0, min(1.0, float(x)))
 
@@ -213,10 +214,12 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
 
         def op(session):
             # ------------------------------------------------------------
-            # 1) Determine which steps we will sample (build base query)
+            # 1) Determine which steps we will sample
             # ------------------------------------------------------------
+
             step_q = session.query(StepORM.id, StepORM.total_energy)
 
+            # Join runs if we need policy filters or last_n_runs selection
             needs_run_join = (
                 query.exclude_policy_ids is not None
                 or query.last_n_runs is not None
@@ -227,6 +230,7 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
 
             conditions = []
 
+            # Scope selection
             if query.run_id is not None:
                 conditions.append(StepORM.run_id == query.run_id)
 
@@ -246,6 +250,7 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
 
             # last_n_runs: select most recent runs, then restrict steps to those
             if query.last_n_runs is not None:
+                # choose runs by start_time desc
                 run_ids_subq = (
                     session.query(RunORM.run_id)
                     .order_by(desc(RunORM.start_time))

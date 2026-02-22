@@ -1,0 +1,43 @@
+# Survival analysis configuration (long-horizon conversations)
+
+failure_criteria:
+  lyapunov_violation:
+    enabled: true
+    V_threshold: 0.7
+    consecutive_turns: 3
+
+  # In open-ended long conversations we typically have no gold answers.
+  accuracy_collapse:
+    enabled: false
+    threshold: 0.3
+    consecutive_turns: 2
+
+  energy_spike:
+    enabled: true
+    threshold: 10.0
+    consecutive_turns: 1
+
+safe_set:
+  V_threshold: 0.5
+  definition: "collapse_probability"
+
+censoring:
+  max_turns: 300
+
+revert:
+  # temp_only | truncate_only | hybrid
+  mode: "hybrid"
+  truncate_turns: 2
+  min_history_msgs: 1
+
+experiment:
+  n_trials_per_controller: 30
+  controllers:
+    - "baseline_no_control"
+    - "full_3head"
+    - "full_3head_temp_only"
+    - "truncate_random_matched"
+  seed: 42
+
+reporting:
+  output_dir: "outputs/survival_analysis"
