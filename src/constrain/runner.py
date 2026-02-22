@@ -25,9 +25,10 @@ from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
 from constrain.model import call_model
-from constrain.policy.apply_policy import apply_policy
 from constrain.reasoning_state import ReasoningState
 from constrain.utils.dict_utils import flatten_numeric_dict
+from constrain.policy.engine import PolicyEngine
+from constrain.policy.thresholds import CalibrationThresholdProvider
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,16 @@ def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold:
     memory.runs.create(run_dto)
     logger.debug("Run registered in database")
 
+    # ----------------------------------------------------------
+    # POLICY ENGINE INIT (once per run)
+    # ----------------------------------------------------------
+
+    threshold_provider = CalibrationThresholdProvider()
+    engine = PolicyEngine.from_id(
+        policy_id=policy_id,
+        threshold_provider=threshold_provider,
+    )
+ 
     # ==========================================================
     # LOAD DATASET
     # ==========================================================
@@ -209,19 +220,21 @@ def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold:
                 # -----------------------------
                 # POLICY
                 # -----------------------------
-
-                action, new_temperature, collapse_probability = apply_policy(
-                    policy_id=policy_id,
+                decision = engine.apply(
                     axes=axes,
                     flat_metrics=flat_metrics,
-                    reasoning=reasoning,
                     state=state,
                     memory=memory,
                     run_id=run_id,
-                    threshold=threshold,
+                    step_id=None,  # we don't have step yet
                 )
-                logger.debug("Policy decision: action=%s, new_temperature=%.2f", action, new_temperature)
 
+                action = decision.action
+                new_temperature = decision.new_temperature
+                collapse_probability = decision.collapse_probability
+
+                logger.debug("Policy decision: action=%s, new_temperature=%.2f",
+                            action, new_temperature)
                 # Apply state transition
                 if action == "ACCEPT":
                     state.accept(reasoning)
@@ -265,6 +278,15 @@ def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold:
 
                 step_dto = memory.steps.create(step_dto)
                 logger.debug("Step saved with id=%s", step_dto.id)
+
+
+                # Log policy event for audit
+                engine.log_policy_event(
+                    memory=memory,
+                    run_id=run_id,
+                    step_id=step_dto.id,
+                    decision=decision,
+                )
 
                 memory.metrics.bulk_from_dict(
                     step_id=step_dto.id,

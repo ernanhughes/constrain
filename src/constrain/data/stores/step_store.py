@@ -1,17 +1,23 @@
 # constrain/data/stores/step_store.py
-
 from __future__ import annotations
 
 from typing import Any, List, Optional
 
 import pandas as pd
-from sqlalchemy import and_, desc, func
+from sqlalchemy import and_, desc, func, Integer
 from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM
 from constrain.data.orm.step import StepORM
 from constrain.data.schemas.step import StepDTO
 from constrain.data.stores.base_store import BaseSQLAlchemyStore
+
+
+from sqlalchemy import select
+
+from constrain.policy.custom_types import Thresholds
+from constrain.policy.threshold_query import ThresholdQuery
+from constrain.policy.threshold_result import ThresholdResult
 
 
 class StepStore(BaseSQLAlchemyStore[StepDTO]):
@@ -178,5 +184,163 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
             df = df.sort_values("timestamp", ascending=False)
 
             return df.head(limit)
+
+        return self._run(op)
+
+
+
+    def get_energy_thresholds(self, query: ThresholdQuery) -> ThresholdResult:
+        """
+        Compute tau_soft/medium/hard from persisted StepORM.total_energy.
+
+        No SQL outside the data layer.
+        No recomputation.
+        Uses rank-position quantiles (not tail MAX) to avoid collapse artifacts.
+        """
+
+        def clamp01(x: float) -> float:
+            return max(0.0, min(1.0, float(x)))
+
+        q_soft = clamp01(query.q_soft)
+        q_med = clamp01(query.q_medium)
+        q_hard = clamp01(query.q_hard)
+
+        if not (q_soft <= q_med <= q_hard):
+            raise ValueError(f"Quantiles must be nondecreasing: {q_soft}, {q_med}, {q_hard}")
+
+        def op(session):
+            # ------------------------------------------------------------
+            # 1) Determine which steps we will sample
+            # ------------------------------------------------------------
+
+            step_q = session.query(StepORM.id, StepORM.total_energy)
+
+            # Join runs if we need policy filters or last_n_runs selection
+            needs_run_join = (
+                query.exclude_policy_ids is not None
+                or query.last_n_runs is not None
+                or query.include_run_ids is not None
+            )
+            if needs_run_join:
+                step_q = step_q.join(RunORM, StepORM.run_id == RunORM.run_id)
+
+            conditions = []
+
+            # Scope selection
+            if query.run_id is not None:
+                conditions.append(StepORM.run_id == query.run_id)
+
+            if query.include_run_ids is not None:
+                if len(query.include_run_ids) == 0:
+                    raise ValueError("include_run_ids cannot be empty.")
+                conditions.append(StepORM.run_id.in_(list(query.include_run_ids)))
+
+            if query.exclude_policy_ids is not None and needs_run_join:
+                conditions.append(~RunORM.policy_id.in_(list(query.exclude_policy_ids)))
+
+            if query.require_correctness_nonnull:
+                conditions.append(StepORM.correctness.isnot(None))
+
+            if conditions:
+                step_q = step_q.filter(and_(*conditions))
+
+            # last_n_runs: select most recent runs, then restrict steps to those
+            if query.last_n_runs is not None:
+                # choose runs by start_time desc
+                run_ids_subq = (
+                    session.query(RunORM.run_id)
+                    .order_by(desc(RunORM.start_time))
+                    .limit(int(query.last_n_runs))
+                    .subquery()
+                )
+                step_q = step_q.filter(StepORM.run_id.in_(select(run_ids_subq.c.run_id)))
+
+            # last_n_steps: restrict by most recent steps
+            if query.last_n_steps is not None:
+                # easiest: order by timestamp desc, limit, then compute thresholds from that subset
+                # We do this by turning it into a subquery of ids.
+                ids_subq = (
+                    session.query(StepORM.id)
+                    .filter(and_(*conditions)) if conditions else session.query(StepORM.id)
+                )
+
+                if needs_run_join:
+                    ids_subq = ids_subq.join(RunORM, StepORM.run_id == RunORM.run_id)
+                    if query.exclude_policy_ids is not None:
+                        ids_subq = ids_subq.filter(~RunORM.policy_id.in_(list(query.exclude_policy_ids)))
+
+                if query.run_id is not None:
+                    ids_subq = ids_subq.filter(StepORM.run_id == query.run_id)
+                if query.include_run_ids is not None:
+                    ids_subq = ids_subq.filter(StepORM.run_id.in_(list(query.include_run_ids)))
+                if query.last_n_runs is not None:
+                    ids_subq = ids_subq.filter(StepORM.run_id.in_(select(run_ids_subq.c.run_id)))
+                if query.require_correctness_nonnull:
+                    ids_subq = ids_subq.filter(StepORM.correctness.isnot(None))
+
+                ids_subq = (
+                    ids_subq.order_by(desc(StepORM.timestamp))
+                    .limit(int(query.last_n_steps))
+                    .subquery()
+                )
+
+                step_q = session.query(StepORM.id, StepORM.total_energy).filter(StepORM.id.in_(select(ids_subq.c.id)))
+
+            # ------------------------------------------------------------
+            # 2) Ensure sufficient samples
+            # ------------------------------------------------------------
+            n = step_q.count()
+            if n < int(query.min_samples):
+                raise ValueError(f"Not enough samples for thresholds: n={n} < min_samples={query.min_samples}")
+
+            # ------------------------------------------------------------
+            # 3) Rank-based quantiles (stable)
+            # ------------------------------------------------------------
+            # Compute row_number over sorted energy + total count
+            ranked = (
+                session.query(
+                    StepORM.total_energy.label("e"),
+                    func.row_number().over(order_by=StepORM.total_energy.asc()).label("rn"),
+                    func.count().over().label("n"),
+                )
+                .filter(StepORM.id.in_(select(step_q.subquery().c.id)))
+                .subquery()
+            )
+
+            # target ranks: ceil(q * n)
+            # SQLAlchemy doesn't have CEIL portable across sqlite; use CAST(q*n + 0.999999)
+            def rank_expr(q):
+                return func.cast(q * ranked.c.n + 0.999999, Integer)
+
+            k_soft = rank_expr(q_soft)
+            k_med = rank_expr(q_med)
+            k_hard = rank_expr(q_hard)
+
+            # select energy at those ranks
+            tau_soft = session.query(ranked.c.e).filter(ranked.c.rn == k_soft).scalar()
+            tau_med = session.query(ranked.c.e).filter(ranked.c.rn == k_med).scalar()
+            tau_hard = session.query(ranked.c.e).filter(ranked.c.rn == k_hard).scalar()
+
+            # Fallback if any scalar came back None (shouldn't happen, but be defensive)
+            if tau_soft is None or tau_med is None or tau_hard is None:
+                # fallback to min/median/max
+                stats = (
+                    session.query(func.min(StepORM.total_energy), func.avg(StepORM.total_energy), func.max(StepORM.total_energy))
+                    .filter(StepORM.id.in_(select(step_q.subquery().c.id)))
+                    .one()
+                )
+                mn, mean, mx = stats
+                tau_soft = tau_soft if tau_soft is not None else mean
+                tau_med = tau_med if tau_med is not None else mean
+                tau_hard = tau_hard if tau_hard is not None else mx
+
+            return ThresholdResult(
+                thresholds=Thresholds(
+                    float(tau_soft),
+                    float(tau_med),
+                    float(tau_hard),
+                ),
+                sample_count=int(n),
+            )
 
         return self._run(op)

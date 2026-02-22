@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 from constrain.data.stores.experiment_store import ExperimentStore
+from constrain.data.stores.policy_event_store import PolicyEventStore
+from constrain.data.stores.problem_summary_store import ProblemSummaryStore
 from constrain.data.stores.signal_report_store import SignalReportStore
 
 if TYPE_CHECKING:
@@ -19,15 +21,15 @@ if TYPE_CHECKING:
 
 class MemoryProtocol(Protocol):
     """Protocol defining all available stores for type checking and IDE support."""
-    # Core stores
-    runs: RunStore
-    steps: StepStore
-    interventions: InterventionStore
-    embedding: EmbeddingStore
-    metrics: MetricStore
-    derived_metrics: DerivedMetricsStore
-    signals: SignalDiscoveryStore
     calibrations: CalibrationStore
-    signal_reports: SignalReportStore 
+    derived_metrics: DerivedMetricsStore
+    embedding: EmbeddingStore
     experiments: ExperimentStore
-
+    interventions: InterventionStore
+    metrics: MetricStore
+    policy_events: PolicyEventStore
+    problem_summaries: ProblemSummaryStore
+    runs: RunStore
+    signals: SignalDiscoveryStore
+    signal_reports: SignalReportStore 
+    steps: StepStore

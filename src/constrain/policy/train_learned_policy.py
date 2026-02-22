@@ -80,6 +80,55 @@ def train_model(train_df, output_path):
 
     print("Model saved to:", output_path)
 
+def build_training_dataframe_from_recent(limit=50000):
+
+    memory = Memory(get_config().db_url)
+    cfg = get_config()
+    tau_hard = cfg.tau_hard
+
+    df = memory.steps.get_recent_unique_steps(
+        limit=limit,
+        exclude_policy_ids=[99],  # optional
+    )
+    print("Total recent steps fetched:", len(df))
+
+    df = df.sort_values(["run_id", "problem_id", "iteration"])
+
+    rows = []
+
+    for (run_id, pid), group in df.groupby(["run_id", "problem_id"]):
+        group = group.reset_index(drop=True)
+
+        for i in range(len(group) - 1):
+
+            current = group.iloc[i]
+            next_row = group.iloc[i + 1]
+
+            collapse_next = int(next_row["total_energy"] > tau_hard)
+
+            feature_cols = [
+                c for c in group.columns
+                if c not in [
+                    "run_id",
+                    "problem_id",
+                    "iteration",
+                    "reasoning_text",
+                    "gold_answer",
+                    "extracted_answer",
+                    "timestamp",
+                ]
+            ]
+
+            row = current[feature_cols].to_dict()
+            row["target"] = collapse_next
+            rows.append(row)
+
+    train_df = pd.DataFrame(rows)
+
+    print("Training samples:", len(train_df))
+    print(train_df["target"].value_counts(normalize=True))
+
+    return train_df
 
 def main():
     run_id = "run_e9b4c143" 
@@ -87,7 +136,7 @@ def main():
     cfg = get_config()
     output_path = cfg.learned_model_path
 
-    df = build_training_dataframe(run_id)
+    df = build_training_dataframe_from_recent(limit=50000)
 
     print("Training samples:", len(df))
     print("Positive rate:", df["target"].mean())

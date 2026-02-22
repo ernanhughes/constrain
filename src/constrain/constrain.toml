@@ -1,20 +1,78 @@
+# ---------------------------------------------------------
+# DATABASE
+# ---------------------------------------------------------
+
 [database]
 url = "sqlite:///experiment.db"
 
+
+# ---------------------------------------------------------
+# MODEL
+# ---------------------------------------------------------
+
 [model]
+provider = "ollama"
 name = "mistral"
 embedding_model = "all-MiniLM-L6-v2"
+embedding_db = "embedding.db"
 ollama_url = "http://localhost:11434/api/generate"
+
+
+# ---------------------------------------------------------
+# EXPERIMENT
+# ---------------------------------------------------------
 
 [experiment]
 num_problems = 200
 num_recursions = 10
 initial_temperature = 1.1
 
+# Policy behavior mode:
+# "static"    → use tau values directly
+# "recursive" → use recursive calibration table
+policy_mode = "recursive"
+
+# Learned policy controls
+learned_policy_threshold = 0.5
+learned_policy_shadow = false
+
+
+# ---------------------------------------------------------
+# THRESHOLDS (used only if policy_mode="static")
+# ---------------------------------------------------------
+
 [tau]
 soft = 0.45
 medium = 0.63
 hard = 1.54
+
+
+# ---------------------------------------------------------
+# POLICY CONTROLS (NEW ENGINE)
+# ---------------------------------------------------------
+
+[policy]
+
+# Temperature floor
+min_temperature = 0.1
+
+# Cooling factors
+revert_cooldown_factor = 0.9
+aggressive_cooldown_factor = 0.75
+reset_cooldown_factor = 0.7
+
+# Random policies
+random_revert_probability = 0.3
+
+# Geometry band policy
+geometry_pr_threshold = 0.6
+geometry_sensitivity_threshold = 0.5
+geometry_band_width_factor = 0.15
+
+
+# ---------------------------------------------------------
+# EXECUTION
+# ---------------------------------------------------------
 
 [execution]
 run_baseline = true
@@ -24,7 +82,13 @@ run_experiment = true
 experiment_policy_id = 5
 
 run_analysis = true
+fast_mode = false
+
+
+# ---------------------------------------------------------
+# PAPER / REPRODUCIBILITY
+# ---------------------------------------------------------
 
 [paper]
-notes = "Recursive stability control experiment v0.1"
+notes = "Recursive stability control experiment v0.2 — dynamic thresholds enabled"
 track_git = true

@@ -14,6 +14,8 @@ from constrain.data.stores.embedding_store import EmbeddingStore
 from constrain.data.stores.experiment_store import ExperimentStore
 from constrain.data.stores.intervention_store import InterventionStore
 from constrain.data.stores.metric_store import MetricStore
+from constrain.data.stores.policy_event_store import PolicyEventStore
+from constrain.data.stores.problem_summary_store import ProblemSummaryStore
 from constrain.data.stores.run_store import RunStore
 from constrain.data.stores.signal_discovery_store import SignalDiscoveryStore
 from constrain.data.stores.signal_report_store import SignalReportStore
@@ -61,16 +63,18 @@ class Memory(MemoryProtocol):
     def _register_core_stores(self):
         """Register all core Verity stores with standardized names."""
         core_stores = [
-            ("runs", RunStore),
-            ("interventions", InterventionStore),
-            ("steps", StepStore),
-            ("embeddings", EmbeddingStore),
-            ("metrics", MetricStore),
-            ("derived_metrics", DerivedMetricsStore),  
-            ("signals", SignalDiscoveryStore),
             ("calibrations", CalibrationStore),
-            ("signal_reports", SignalReportStore), 
+            ("derived_metrics", DerivedMetricsStore),  
+            ("embeddings", EmbeddingStore),
             ("experiments", ExperimentStore),
+            ("interventions", InterventionStore),
+            ("metrics", MetricStore),
+            ("policy_events", PolicyEventStore),
+            ("problem_summaries", ProblemSummaryStore),
+            ("runs", RunStore),
+            ("signals", SignalDiscoveryStore),
+            ("signal_reports", SignalReportStore), 
+            ("steps", StepStore),
         ]
         for name, store_class in core_stores:
             self.register_store(name, store_class(self.session_maker, memory=self))

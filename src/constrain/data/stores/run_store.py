@@ -31,3 +31,22 @@ class RunStore(BaseSQLAlchemyStore[RunDTO]):
             return self._to_dto(obj)
 
         return self._run(op)
+
+    def get_previous_completed_run(self, current_run_id: str) -> Optional[str]:
+        """
+        Returns the most recent completed run_id that is NOT the current run.
+        Returns None if none exists.
+        """
+
+        def op(s):
+            row = (
+                s.query(RunORM)
+                .filter(RunORM.status == "completed")
+                .filter(RunORM.run_id != current_run_id)
+                .order_by(RunORM.start_time.desc())
+                .first()
+            )
+
+            return row.run_id if row else None
+
+        return self._run(op)

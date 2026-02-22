@@ -205,7 +205,6 @@ def apply_policy(
         if learned_policy is not None:
 
             action, collapse_prob = learned_policy.decide(flat_metrics)
-            print("DEBUG collapse_prob:", collapse_prob)
 
             if not cfg.learned_policy_shadow:
                 if action == "REVERT":

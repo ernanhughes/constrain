@@ -45,8 +45,8 @@ def main():
         results.append(row)
 
     df = pd.DataFrame(results)
-    get_config().output_dir.mkdir(parents=True, exist_ok=True)
-    df.to_csv("threshold_sweep_results.csv", index=False)
+    
+    df.to_csv(f"{get_config().reports_dir}/threshold_sweep_results.csv", index=False)
 
     print("\n==============================")
     print(df)

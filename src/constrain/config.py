@@ -114,6 +114,7 @@ class ConstrainConfig:
     models_dir: str
     reports_dir: str
     learned_model_path: str
+    learned_policy_threshold: float
     learned_policy_shadow: bool
 
     # Core
@@ -132,6 +133,16 @@ class ConstrainConfig:
     tau_soft: float
     tau_medium: float
     tau_hard: float
+
+    # Policy Controls
+    min_temperature: float
+    revert_cooldown_factor: float
+    aggressive_cooldown_factor: float
+    reset_cooldown_factor: float
+    random_revert_probability: float
+    geometry_pr_threshold: float
+    geometry_sensitivity_threshold: float
+    geometry_band_width_factor: float
 
     # Execution Controls
     run_baseline: bool
@@ -194,6 +205,10 @@ class ConstrainConfig:
         models_dir = home_dir / "models"
         reports_dir = base_dir / "reports"
         learned_model_path = models_dir / "learned_policy.joblib"
+        learned_policy_threshold = float(get_value(
+            "learned_policy_threshold", toml_section="experiment", env_var=None,
+            default=0.5
+        ))
 
         # Ensure directories exist
         for d in [
@@ -268,6 +283,50 @@ class ConstrainConfig:
             default=0.36
         ))
 
+        # ---------------------------------------------------------
+        # POLICY CONTROLS
+        # ---------------------------------------------------------
+
+        min_temperature = float(get_value(
+            "min_temperature", toml_section="policy", env_var=None,
+            default=0.1
+        ))
+
+        revert_cooldown_factor = float(get_value(
+            "revert_cooldown_factor", toml_section="policy", env_var=None,
+            default=0.9
+        ))
+
+        aggressive_cooldown_factor = float(get_value(
+            "aggressive_cooldown_factor", toml_section="policy", env_var=None,
+            default=0.75
+        ))
+
+        reset_cooldown_factor = float(get_value(
+            "reset_cooldown_factor", toml_section="policy", env_var=None,
+            default=0.7
+        ))
+
+        random_revert_probability = float(get_value(
+            "random_revert_probability", toml_section="policy", env_var=None,
+            default=0.3
+        ))
+
+        geometry_pr_threshold = float(get_value(
+            "geometry_pr_threshold", toml_section="policy", env_var=None,
+            default=0.6
+        ))
+
+        geometry_sensitivity_threshold = float(get_value(
+            "geometry_sensitivity_threshold", toml_section="policy", env_var=None,
+            default=0.5
+        ))
+
+        geometry_band_width_factor = float(get_value(
+            "geometry_band_width_factor", toml_section="policy", env_var=None,
+            default=0.15
+        ))
+
         # Execution Controls
         run_baseline = bool(get_value(
             "run_baseline", toml_section="execution", env_var=None,
@@ -312,6 +371,7 @@ class ConstrainConfig:
             models_dir=str(models_dir),
             reports_dir=str(reports_dir),
             learned_model_path=str(learned_model_path),
+            learned_policy_threshold=learned_policy_threshold,
             learned_policy_shadow=learned_policy_shadow,
             db_url=db_url,
             model_name=model_name,
@@ -326,6 +386,14 @@ class ConstrainConfig:
             tau_soft=tau_soft,
             tau_medium=tau_medium,
             tau_hard=tau_hard,
+            min_temperature=min_temperature,
+            revert_cooldown_factor=revert_cooldown_factor,
+            aggressive_cooldown_factor=aggressive_cooldown_factor,
+            reset_cooldown_factor=reset_cooldown_factor,
+            random_revert_probability=random_revert_probability,
+            geometry_pr_threshold=geometry_pr_threshold,
+            geometry_sensitivity_threshold=geometry_sensitivity_threshold,
+            geometry_band_width_factor=geometry_band_width_factor,
             run_baseline=run_baseline,
             baseline_policy_id=baseline_policy_id,
             run_experiment=run_experiment,
@@ -357,6 +425,7 @@ class ConstrainConfig:
             "reports_dir": self.reports_dir,
             "db_url": self.db_url,
             "learned_model_path": self.learned_model_path,  
+            "learned_policy_threshold": self.learned_policy_threshold,
             "learned_policy_shadow": self.learned_policy_shadow,
             "model_name": self.model_name,
             "provider": self.provider,
@@ -369,6 +438,14 @@ class ConstrainConfig:
             "tau_soft": self.tau_soft,
             "tau_medium": self.tau_medium,
             "tau_hard": self.tau_hard,
+            "min_temperature": self.min_temperature,
+            "revert_cooldown_factor": self.revert_cooldown_factor,
+            "aggressive_cooldown_factor": self.aggressive_cooldown_factor,
+            "reset_cooldown_factor": self.reset_cooldown_factor,
+            "random_revert_probability": self.random_revert_probability,
+            "geometry_pr_threshold": self.geometry_pr_threshold,
+            "geometry_sensitivity_threshold": self.geometry_sensitivity_threshold,
+            "geometry_band_width_factor": self.geometry_band_width_factor,
             "baseline_policy_id": self.baseline_policy_id,
             "run_experiment": self.run_experiment,
             "experiment_policy_id": self.experiment_policy_id,

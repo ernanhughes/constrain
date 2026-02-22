@@ -9,8 +9,8 @@ class AxisBundle:
     def __init__(self, axes: Dict[str, float]):
         self._axes = axes
 
-    def get(self, name: str) -> float:
-        return self._axes.get(name, 0.0)
+    def get(self, name: str, default: float = 0.0) -> float:
+        return self._axes.get(name, default)
 
     def items(self):
         return self._axes.items()
