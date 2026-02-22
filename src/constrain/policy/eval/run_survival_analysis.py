@@ -50,7 +50,7 @@ class SurvivalTrial:
 
 
 class SurvivalAnalyzer:
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, model_base_path: str = get_config().learned_model_path):
         with open(config_path, "r", encoding="utf-8") as f:
             self.cfg = yaml.safe_load(f)
         self.app_cfg = get_config()
@@ -60,11 +60,10 @@ class SurvivalAnalyzer:
 
         # Learned policy for *action selection* (ACCEPT/REVERT) in policy-controlled arms.
         self._policy = None
-        if getattr(self.app_cfg, "learned_model_path", None):
-            self._policy = LearnedPolicy(
-                model_path=self.app_cfg.learned_model_path,
-                threshold=getattr(self.app_cfg, "learned_policy_threshold", 0.5),
-            )
+        self._policy = LearnedPolicy(
+            model_path=model_base_path,
+            threshold=get_config().learned_policy_threshold,
+        )
 
     # ------------------------------------------------------------
     # Failure criteria
