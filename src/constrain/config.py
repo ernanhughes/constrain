@@ -150,6 +150,9 @@ class ConstrainConfig:
     run_experiment: bool
     experiment_policy_id: int
     run_analysis: bool
+    run_signal_discovery: bool
+    save_signal_plots: bool
+    signal_prediction_horizon: int
 
     fast_mode: bool = True
     policy_mode: str = "recursive"
@@ -208,6 +211,14 @@ class ConstrainConfig:
         learned_policy_threshold = float(get_value(
             "learned_policy_threshold", toml_section="experiment", env_var=None,
             default=0.5
+        ))
+        save_signal_plots = bool(get_value(
+            "save_signal_plots", toml_section="experiment", env_var=None,
+            default=False
+        ))
+        signal_prediction_horizon = int(get_value(
+            "signal_prediction_horizon", toml_section="experiment", env_var=None,
+            default=2
         ))
 
         # Ensure directories exist
@@ -353,6 +364,11 @@ class ConstrainConfig:
             default=True
         ))
 
+        run_signal_discovery = bool(get_value(
+            "run_signal_discovery", toml_section="execution", env_var=None,
+            default=True
+        ))
+
         # Paper notes
         notes = toml_data.get("paper", {}).get("notes")
 
@@ -399,6 +415,9 @@ class ConstrainConfig:
             run_experiment=run_experiment,
             experiment_policy_id=experiment_policy_id,
             run_analysis=run_analysis,
+            save_signal_plots=save_signal_plots,    
+            signal_prediction_horizon=signal_prediction_horizon,
+            run_signal_discovery=run_signal_discovery,
             notes=notes,
             fast_mode=fast_mode,
             git_commit=git_meta.get("git_commit"),
@@ -448,8 +467,11 @@ class ConstrainConfig:
             "geometry_band_width_factor": self.geometry_band_width_factor,
             "baseline_policy_id": self.baseline_policy_id,
             "run_experiment": self.run_experiment,
+            "run_signal_discovery": self.run_signal_discovery,
             "experiment_policy_id": self.experiment_policy_id,
             "run_analysis": self.run_analysis,
+            "save_signal_plots": self.save_signal_plots,
+            "signal_prediction_horizon": self.signal_prediction_horizon,
             "notes": self.notes,
             "fast_mode": self.fast_mode,
             "git_commit": self.git_commit,

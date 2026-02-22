@@ -1,9 +1,11 @@
-# constrain/data/orm/experiment.py
+from __future__ import annotations
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, Text, Boolean
+from sqlalchemy import Column, Float, Integer, Text
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base
+
+from constrain.data.orm.collapse_signal import CollapseSignalORM
 
 
 class ExperimentORM(Base):
@@ -13,21 +15,21 @@ class ExperimentORM(Base):
 
     # Experiment metadata
     experiment_name = Column(Text, nullable=False)
-    experiment_type = Column(Text, nullable=False)  # "policy_comparison" | "threshold_sweep" | "ablation"
+    experiment_type = Column(Text, nullable=False)
 
     # Configuration
-    policy_ids = Column(Text, nullable=False)  # JSON list: "[0, 4, 99]"
-    seeds = Column(Text, nullable=False)  # JSON list: "[42, 43, 44]"
+    policy_ids = Column(Text, nullable=False)
+    seeds = Column(Text, nullable=False)
     num_problems = Column(Integer, nullable=True)
     num_recursions = Column(Integer, nullable=True)
 
     # Timing
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=True)
-    status = Column(Text, nullable=False)  # "running" | "completed" | "failed"
+    status = Column(Text, nullable=False)
 
-    # Results summary (stored as JSON for flexibility)
-    results_summary = Column(Text, nullable=True)  # JSON blob of aggregated metrics
+    # Results summary
+    results_summary = Column(Text, nullable=True)
 
     # Notes / metadata
     notes = Column(Text, nullable=True)
@@ -35,3 +37,9 @@ class ExperimentORM(Base):
 
     # Relationships
     runs = relationship("RunORM", back_populates="experiment")
+    collapse_signals = relationship(
+        "CollapseSignalORM",
+        back_populates="experiment",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )

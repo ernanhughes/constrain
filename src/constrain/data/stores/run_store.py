@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import sessionmaker
 
@@ -49,4 +49,17 @@ class RunStore(BaseSQLAlchemyStore[RunDTO]):
 
             return row.run_id if row else None
 
+        return self._run(op)
+    
+
+    def update(self, run_id: str, updates: Dict[str, Any]) -> Optional[RunDTO]:
+        def op(s):
+            obj = s.query(self.orm_model).filter_by(run_id=run_id).first()
+            if obj is None:
+                return None
+            for key, value in updates.items():
+                if hasattr(obj, key):
+                    setattr(obj, key, value)
+            s.flush()
+            return self._to_dto(obj)
         return self._run(op)

@@ -7,6 +7,25 @@ from constrain.policy.log_calibrator import LogCalibrator
 from .custom_types import ThresholdProvider, Thresholds
 from .threshold_query import ThresholdQuery
 
+import logging
+logger = logging.getLogger(__name__)
+
+@dataclass
+class FixedThresholdProvider(ThresholdProvider):
+    """
+    Provider for experimental threshold sweeps.
+    Uses fixed values, ignoring calibration logic.
+    """
+    tau_soft: float
+    tau_medium: float
+    tau_hard: float
+
+    def get(self, *, cfg, memory: Memory, run_id: str, step_id: int | None = None) -> Thresholds:
+        return Thresholds(
+            tau_soft=self.tau_soft,
+            tau_medium=self.tau_medium,
+            tau_hard=self.tau_hard,
+        )
 
 @dataclass
 class DatabaseThresholdProvider(ThresholdProvider):
@@ -37,13 +56,6 @@ class RecursiveThresholdProvider(ThresholdProvider):
         tau_soft, tau_medium, tau_hard = self.calibrator.get_thresholds(memory, run_id)
         return Thresholds(tau_soft, tau_medium, tau_hard)
     
-
-from dataclasses import dataclass
-import logging
-
-logger = logging.getLogger(__name__)
-
-
 @dataclass
 class CalibrationThresholdProvider(ThresholdProvider):
     policy_mode: str = "dynamic"

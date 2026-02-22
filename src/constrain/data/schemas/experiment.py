@@ -1,14 +1,15 @@
-# constrain/data/schemas/experiment.py
-
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 
 
 class ExperimentDTO(BaseModel):
-    model_config = ConfigDict(extra="forbid", from_attributes=True)
+    """Experiment metadata for grouping related runs."""
+    
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
     id: Optional[int] = None
 
@@ -16,16 +17,16 @@ class ExperimentDTO(BaseModel):
     experiment_name: str
     experiment_type: str  # "policy_comparison" | "threshold_sweep" | "ablation"
 
-    # Configuration
-    policy_ids: List[int] = Field(default_factory=list)  # Will be JSON-encoded/decoded
-    seeds: List[int] = Field(default_factory=list)
+    # Configuration (stored as JSON strings in DB, lists in DTO)
+    policy_ids: List[int] = []
+    seeds: List[int] = []
     num_problems: Optional[int] = None
     num_recursions: Optional[int] = None
 
     # Timing
     start_time: float
     end_time: Optional[float] = None
-    status: str  # "running" | "completed" | "failed"
+    status: str = "running"  # "running" | "completed" | "failed"
 
     # Results summary
     results_summary: Optional[Dict[str, Any]] = None
@@ -34,24 +35,75 @@ class ExperimentDTO(BaseModel):
     notes: Optional[str] = None
     git_commit: Optional[str] = None
 
-    # Helper to parse JSON fields
-    @classmethod
-    def from_orm(cls, orm_obj) -> "ExperimentDTO":
-        import json
+    # ============================================================
+    # Validators: Parse JSON strings from ORM
+    # ============================================================
 
-        data = {
-            "id": orm_obj.id,
-            "experiment_name": orm_obj.experiment_name,
-            "experiment_type": orm_obj.experiment_type,
-            "policy_ids": json.loads(orm_obj.policy_ids) if orm_obj.policy_ids else [],
-            "seeds": json.loads(orm_obj.seeds) if orm_obj.seeds else [],
-            "num_problems": orm_obj.num_problems,
-            "num_recursions": orm_obj.num_recursions,
-            "start_time": orm_obj.start_time,
-            "end_time": orm_obj.end_time,
-            "status": orm_obj.status,
-            "results_summary": json.loads(orm_obj.results_summary) if orm_obj.results_summary else None,
-            "notes": orm_obj.notes,
-            "git_commit": orm_obj.git_commit,
-        }
-        return cls(**data)
+    @field_validator("policy_ids", "seeds", mode="before")
+    @classmethod
+    def parse_json_list(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        if isinstance(v, (list, tuple)):
+            return list(v)
+        return []
+
+    @field_validator("results_summary", mode="before")
+    @classmethod
+    def parse_json_dict(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return None
+        if isinstance(v, dict):
+            return v
+        return None
+
+    # ============================================================
+    # Serializers: Convert lists/dicts to JSON strings for ORM
+    # ============================================================
+
+    @field_serializer("policy_ids", "seeds")
+    def serialize_json_list(self, v):
+        return json.dumps(v) if v is not None else None
+
+    @field_serializer("results_summary")
+    def serialize_json_dict(self, v):
+        return json.dumps(v) if v is not None else None
+
+    # ============================================================
+    # Helpers
+    # ============================================================
+
+    @classmethod
+    def create(
+        cls,
+        experiment_name: str,
+        experiment_type: str,
+        policy_ids: List[int],
+        seeds: List[int],
+        num_problems: Optional[int] = None,
+        num_recursions: Optional[int] = None,
+        notes: Optional[str] = None,
+    ) -> "ExperimentDTO":
+        """Factory method to create a new experiment DTO."""
+        import time
+        return cls(
+            experiment_name=experiment_name,
+            experiment_type=experiment_type,
+            policy_ids=policy_ids,
+            seeds=seeds,
+            num_problems=num_problems,
+            num_recursions=num_recursions,
+            start_time=time.time(),
+            status="running",
+            notes=notes,
+        )

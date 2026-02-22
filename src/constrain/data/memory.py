@@ -9,6 +9,7 @@ from constrain.config import get_config
 from constrain.data.engine.session import create_session_factory_from_url
 from constrain.data.memory_protocol import MemoryProtocol
 from constrain.data.stores.calibration_store import CalibrationStore
+from constrain.data.stores.collapse_signal_store import CollapseSignalStore
 from constrain.data.stores.derived_metrics_store import DerivedMetricsStore
 from constrain.data.stores.embedding_store import EmbeddingStore
 from constrain.data.stores.experiment_store import ExperimentStore
@@ -65,6 +66,7 @@ class Memory(MemoryProtocol):
         """Register all core Verity stores with standardized names."""
         core_stores = [
             ("calibrations", CalibrationStore),
+            ("collapse_signals", CollapseSignalStore),
             ("derived_metrics", DerivedMetricsStore),  
             ("embeddings", EmbeddingStore),
             ("experiments", ExperimentStore),

@@ -4,9 +4,9 @@ from constrain.config import get_config
 from constrain.data.memory import Memory
 
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
-from constrain.analysis.stage2.application_evaluator import ApplicationEvaluator
 from constrain.analysis.scientific.scientific_report_builder import ScientificReportBuilder
-from constrain.analysis.stage3.signal_discovery_service import SignalDiscoveryService
+from constrain.services.collapse_prediction_service import CollapsePredictionService
+from constrain.services.policy_evaluation_service import PolicyEvaluationService
 
 
 def run_analysis(run_id: str):
@@ -24,7 +24,7 @@ def run_analysis(run_id: str):
     # ---------------------------------------------------------
 
     print("\n📊 Stage 2 — Application Evaluation")
-    evaluator = ApplicationEvaluator(memory)
+    evaluator = PolicyEvaluationService(memory)
     stage2_summary, _ = evaluator.evaluate_run(run_id)
 
     print(json.dumps(stage2_summary, indent=2))
@@ -45,8 +45,8 @@ def run_analysis(run_id: str):
 
     print("\n🔬 Stage 3 — Signal Discovery")
     try:
-        signal_service = SignalDiscoveryService(memory)
-        signal_results = signal_service.analyze_run(run_id)
+        signal_service = CollapsePredictionService(memory)
+        signal_results = signal_service.discover_signals(run_id)
 
         print(json.dumps(signal_results["model_results"], indent=2))
 

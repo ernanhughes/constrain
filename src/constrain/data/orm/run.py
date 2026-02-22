@@ -42,3 +42,4 @@ class RunORM(Base):
     # Add to RunORM class:
     experiment_id = Column(Integer, ForeignKey("experiments.id"), nullable=True)
     experiment = relationship("ExperimentORM", back_populates="runs")
+    collapse_signals = relationship("CollapseSignalORM",  back_populates="run", cascade="all, delete-orphan")
