@@ -19,6 +19,7 @@ from constrain.data.stores.problem_summary_store import ProblemSummaryStore
 from constrain.data.stores.run_store import RunStore
 from constrain.data.stores.signal_discovery_store import SignalDiscoveryStore
 from constrain.data.stores.signal_report_store import SignalReportStore
+from constrain.data.stores.policy_evaluation_store import PolicyEvaluationStore
 from constrain.data.stores.step_store import StepStore
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ class Memory(MemoryProtocol):
             ("interventions", InterventionStore),
             ("metrics", MetricStore),
             ("policy_events", PolicyEventStore),
+            ("policy_evaluations", PolicyEvaluationStore),
             ("problem_summaries", ProblemSummaryStore),
             ("runs", RunStore),
             ("signals", SignalDiscoveryStore),

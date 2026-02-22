@@ -7,6 +7,7 @@ from constrain.data.stores.experiment_store import ExperimentStore
 from constrain.data.stores.policy_event_store import PolicyEventStore
 from constrain.data.stores.problem_summary_store import ProblemSummaryStore
 from constrain.data.stores.signal_report_store import SignalReportStore
+from constrain.data.stores.policy_evaluation_store import PolicyEvaluationStore
 
 if TYPE_CHECKING:
     from constrain.data.stores.calibration_store import CalibrationStore
@@ -33,3 +34,4 @@ class MemoryProtocol(Protocol):
     signals: SignalDiscoveryStore
     signal_reports: SignalReportStore 
     steps: StepStore
+    stage2_evaluations: PolicyEvaluationStore

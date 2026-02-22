@@ -343,6 +343,26 @@ def run(policy_id: int = 4, seed: int = 42, num_problems: int = None, threshold:
     logger.debug("Run marked as completed in database")
 
     # ==========================================================
+    # STAGE 2 EVALUATION  ← ADD THIS
+    # ==========================================================
+
+    try:
+        logger.debug("Starting Stage 2 evaluation for run %s", run_id)
+        from constrain.services.policy_evaluator import PolicyEvaluator
+        
+        evaluator = PolicyEvaluator(memory)
+        evaluations = evaluator.evaluate_run(run_id)
+        
+        # Generate and log report
+        report = evaluator.generate_report(run_id)
+        logger.info(report)
+        
+        logger.debug("Stage 2 evaluation completed: %d problems evaluated", len(evaluations))
+    except Exception as e:
+        logger.exception(f"Stage 2 evaluation failed: {e}")
+
+
+    # ==========================================================
     # SIGNAL DISCOVERY
     # ==========================================================
 

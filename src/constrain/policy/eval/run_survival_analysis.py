@@ -124,8 +124,7 @@ class SurvivalAnalyzer:
     # ------------------------------------------------------------
     # Trial execution
     # ------------------------------------------------------------
-    def run_single_trial(self, *, trial_id: int, controller: str, prompt: Dict[str, str]) -> SurvivalTrial:
-        max_turns = int(self.cfg["censoring"]["max_turns"])
+    def run_single_trial(self, *, trial_id: int, controller: str, prompt: Dict[str, str], max_turns: int = 300) -> SurvivalTrial:
         revert_cfg = self.cfg.get("revert", {})
         revert_mode = revert_cfg.get("mode", "hybrid")
         truncate_turns = int(revert_cfg.get("truncate_turns", 2))

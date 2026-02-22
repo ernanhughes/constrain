@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Any, Optional, List
 
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
 from constrain.data.orm.policy_event import PolicyEventORM
 from constrain.data.schemas.policy_event import PolicyEventDTO
@@ -16,7 +17,7 @@ class PolicyEventStore(BaseSQLAlchemyStore[PolicyEventDTO]):
     orm_model = PolicyEventORM
     default_order_by = "created_at"
 
-    def __init__(self, sm: sessionmaker, memory: Optional[object] = None):
+    def __init__(self, sm: sessionmaker, memory: Optional[Any] = None):  # ← Fixed
         super().__init__(sm, memory)
         self.name = "policy_events"
 
@@ -61,3 +62,34 @@ class PolicyEventStore(BaseSQLAlchemyStore[PolicyEventDTO]):
 
         row = self._run(op)
         return self._to_dto(row)
+
+    # ------------------------------------------------------------
+    # Get events by run_id
+    # ------------------------------------------------------------
+
+    def get_by_run_id(self, run_id: str) -> List[PolicyEventDTO]:
+        def op(s):
+            stmt = (
+                select(self.orm_model)
+                .where(self.orm_model.run_id == run_id)
+                .order_by(self.orm_model.created_at.asc())
+            )
+            rows = s.execute(stmt).scalars().all()
+            return [self._to_dto(row) for row in rows]
+
+        return self._run(op)
+
+    # ------------------------------------------------------------
+    # Get events by step_id
+    # ------------------------------------------------------------
+
+    def get_by_step_id(self, step_id: int) -> Optional[PolicyEventDTO]:
+        def op(s):
+            stmt = (
+                select(self.orm_model)
+                .where(self.orm_model.step_id == step_id)
+            )
+            row = s.execute(stmt).scalars().first()
+            return self._to_dto(row) if row else None
+
+        return self._run(op)
