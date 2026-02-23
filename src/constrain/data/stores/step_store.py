@@ -138,56 +138,46 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
     def get_recent_unique_steps(
         self,
         limit: int = 50000,
-        exclude_policy_ids: list[int] | None = None,
-    ):
+        exclude_policy_ids: Optional[list] = None,
+    ) -> pd.DataFrame:
+        """Fetch recent steps, deduplicated by (prompt_text, reasoning_text)."""
+        from sqlalchemy import desc
 
-        def op(session):
-
-            query = (
-                session.query(StepORM)
-                .join(RunORM, StepORM.run_id == RunORM.run_id)
-                .order_by(desc(StepORM.timestamp))
-            )
-
+        def op(s):
+            # ⭐ FIX: Filter BEFORE limit (SQLAlchemy requirement)
+            q = s.query(StepORM).order_by(desc(StepORM.timestamp))
+            
             if exclude_policy_ids:
-                query = query.filter(~RunORM.policy_id.in_(exclude_policy_ids))
+                q = q.filter(StepORM.policy_action.notin_(exclude_policy_ids))
+            
+            q = q.limit(limit * 2)  # Apply limit AFTER filter
+            
+            rows = q.all()
 
-            rows = query.limit(limit * 3).all()  
-            # Pull extra because we'll deduplicate
+            df = pd.DataFrame([{
+                "id": r.id,
+                "run_id": r.run_id,
+                "problem_id": r.problem_id,
+                "iteration": r.iteration,  # ⭐ Ensure this is included
+                "prompt_text": r.prompt_text,
+                "reasoning_text": r.reasoning_text,
+                "total_energy": r.total_energy,
+                "accuracy": r.accuracy,
+                "policy_action": r.policy_action,
+                "collapse_probability": r.collapse_probability,
+                "temperature": r.temperature,
+                "gold_answer": r.gold_answer,
+                "extracted_answer": r.extracted_answer,
+                "timestamp": r.timestamp,
+            } for r in rows])
 
-            data = [
-                {
-                    "run_id": r.run_id,
-                    "problem_id": r.problem_id,
-                    "iteration": r.iteration,
-                    "timestamp": r.timestamp,
-                    "policy_action": r.policy_action,
-                    "reasoning_text": r.reasoning_text,
-                    "total_energy": r.total_energy,
-                    "accuracy": r.accuracy,
-                    "collapse_probability": r.collapse_probability,
-                    "temperature": r.temperature,
-                    "gold_answer": r.gold_answer,
-                    "extracted_answer": r.extracted_answer,
-                }
-                for r in rows
-            ]
+            # Deduplicate
+            df = df.drop_duplicates(subset=["prompt_text", "reasoning_text"])
+            df = df.head(limit)
 
-            df = pd.DataFrame(data)
-
-            if df.empty:
-                return df
-
-            # Deduplicate by reasoning text
-            df = df.drop_duplicates(subset=["reasoning_text"])
-
-            # Keep most recent only
-            df = df.sort_values("timestamp", ascending=False)
-
-            return df.head(limit)
+            return df
 
         return self._run(op)
-
 
 
     def get_energy_thresholds(self, query: ThresholdQuery) -> ThresholdResult:

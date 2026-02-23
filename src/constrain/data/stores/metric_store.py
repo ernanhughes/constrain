@@ -66,7 +66,7 @@ class MetricStore(BaseSQLAlchemyStore[MetricDTO]):
 
         return self._run(op)
     
-    def get_by_steps(self, step_ids: list[int]) -> Dict[int, Dict[str, float]]:
+    def get_by_steps(self, step_ids: list[int], stage: str = None) -> Dict[int, Dict[str, float]]:
         def op(s):
             rows = s.query(MetricORM).filter(MetricORM.step_id.in_(step_ids)).all()
             result = {}

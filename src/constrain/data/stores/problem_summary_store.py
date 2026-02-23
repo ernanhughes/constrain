@@ -18,3 +18,12 @@ class ProblemSummaryStore(BaseSQLAlchemyStore[ProblemSummaryORM]):
 
     def get_by_run(self, run_id: str):
         return self.list(filters={"run_id": run_id})
+    
+    def get_by_run_ids(self, run_ids: list) -> list:
+        """Fetch problem summaries for multiple runs."""
+        def op(s):
+            rows = s.query(ProblemSummaryORM).filter(
+                ProblemSummaryORM.run_id.in_(run_ids)
+            ).all()
+            return rows
+        return self._run(op)
