@@ -11,7 +11,7 @@ from constrain.runner import run
 from constrain.services.policy_evaluation_service import PolicyEvaluationService
 
 
-def compare_policies(
+def I compare_policies(
     policy_ids: List[int],
     seeds: tuple[int, ...] = (42, 43, 44),
     num_problems: Optional[int] = None,

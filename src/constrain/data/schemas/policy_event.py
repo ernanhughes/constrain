@@ -22,4 +22,7 @@ class PolicyEventDTO(BaseModel):
     action: str
     collapse_probability: Optional[float] = None
 
+    decision_mode: str = "deterministic"
+    propensity: float = 1.0
+
     created_at: float

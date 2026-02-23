@@ -17,7 +17,7 @@ from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
 from constrain.config import get_config
 from constrain.data.schemas.step import StepDTO
 from constrain.model import call_model
-from constrain.energy_computer import compute_energy
+from constrain.energy.energy_computer import compute_energy
 from constrain.policy.learned_policy import LearnedPolicy
 
 

@@ -1,5 +1,6 @@
-# constrain/evaluation/collapse_prediction_service.py
-
+"""constrain.services.collapse_prediction_service
+Service for discovering predictive signals of intervention-triggered collapse.
+"""
 from __future__ import annotations
 import json
 import logging

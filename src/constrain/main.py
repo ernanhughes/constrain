@@ -8,18 +8,28 @@ warnings.filterwarnings("ignore")
 
 
 def main():
-    config = get_config()
+    seeds = [42, 43, 44]
+    policy_ids = [0, 4]  # baseline vs energy-policy
 
-    if config.run_baseline:
-        run(policy_id=config.baseline_policy_id)
+    for seed in seeds:
+        for policy_id in policy_ids:
+            run(policy_id=policy_id, seed=seed, num_problems=20)
 
-    if config.run_experiment:
-        run(policy_id=config.experiment_policy_id)
+    compare_policies(policy_ids=policy_ids, seeds=seeds)
 
-    compare_policies(
-        policy_ids=[0, 4, 6],
-        seeds=[42, 43, 44]
-    )
+# def main():
+#     config = get_config()
+
+#     if config.run_baseline:
+#         run(policy_id=config.baseline_policy_id)
+
+#     if config.run_experiment:
+#         run(policy_id=config.experiment_policy_id)
+
+#     compare_policies(
+#         policy_ids=[0, 4, 6],
+#         seeds=[42, 43, 44]
+#     )
 
 
 

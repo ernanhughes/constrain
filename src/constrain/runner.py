@@ -139,6 +139,21 @@ def run_experiment(
     )
     memory.runs.create(run_dto)
 
+    thresholds = threshold_provider.get(
+        cfg=cfg,
+        memory=memory,
+        run_id=run_id,
+    )
+
+    memory.calibrations.create_calibration(
+        run_id=run_id,
+        policy_mode="dynamic",
+        tau_soft=thresholds.tau_soft,
+        tau_medium=thresholds.tau_medium,
+        tau_hard=thresholds.tau_hard,
+        sample_count=None,
+    )
+
     # Initialize policy engine
     engine = PolicyEngine(
         policy=PolicyRegistry.from_id(policy_id),
@@ -200,7 +215,7 @@ def _create_run_dto(
     This isolates the threshold logic so it's easy to test and modify.
     """
     # Get thresholds from provider
-    thresholds = threshold_provider.get(cfg=cfg, memory=None, run_id=run_id)
+    thresholds = threshold_provider.get(cfg=cfg, memory=Memory(cfg.db_url), run_id=run_id)
     
     # Allow override for legacy single-threshold experiments
     if threshold_override is not None:
@@ -421,7 +436,7 @@ def _compute_stability_energy(
 def _apply_policy_action(state: ReasoningState, action: str, new_temperature: float):
     """Apply policy action to reasoning state."""
     if action == "ACCEPT":
-        state.accept(state.current_response or "")
+        state.accept(state.current or "")
     elif action == "REVERT":
         state.revert()
     elif action in ("RESET", "RESET_PROMPT"):

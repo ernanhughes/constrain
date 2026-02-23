@@ -169,6 +169,11 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
                 "gold_answer": r.gold_answer,
                 "extracted_answer": r.extracted_answer,
                 "timestamp": r.timestamp,
+                "intervention_mode": r.intervention_mode,
+                "propensity_score": r.propensity_score,
+                "randomized": r.randomized,
+                "risk_score": r.risk_score,
+                "intervention_intensity": r.intervention_intensity,
             } for r in rows])
 
             # Deduplicate

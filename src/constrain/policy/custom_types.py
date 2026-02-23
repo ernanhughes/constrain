@@ -21,6 +21,9 @@ class PolicyDecision:
     collapse_probability: Optional[float] = None
     meta: Optional[Dict[str, Any]] = None
 
+    decision_mode: str = "deterministic"
+    propensity: float = 1.0
+
 
 class ThresholdProvider(Protocol):
     def get(

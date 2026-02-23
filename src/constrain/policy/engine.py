@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from constrain.data.memory import Memory
+from constrain.policy.exploration_wrapper import ExplorationWrapper
 from constrain.reasoning_state import ReasoningState
 from .custom_types import PolicyDecision, ThresholdProvider, Policy
 from constrain.config import get_config
@@ -13,16 +14,18 @@ from constrain.config import get_config
 class PolicyEngine:
     policy: Policy
     threshold_provider: ThresholdProvider
+    exploration_wrapper: Optional[ExplorationWrapper] = None
 
     # ------------------------------------------------------------
     # Factory constructor
     # ------------------------------------------------------------
 
     @staticmethod
-    def from_id(policy_id: int, threshold_provider: ThresholdProvider):
+    def from_id(policy_id: int, threshold_provider: ThresholdProvider, exploration_wrapper: Optional[ExplorationWrapper] = None):
         from .registry import PolicyRegistry
         policy = PolicyRegistry.from_id(policy_id)
-        return PolicyEngine(policy=policy, threshold_provider=threshold_provider)
+        exploration_wrapper = exploration_wrapper or ExplorationWrapper(base_policy=policy)
+        return PolicyEngine(policy=policy, threshold_provider=threshold_provider, exploration_wrapper=exploration_wrapper)
 
     # ------------------------------------------------------------
     # Apply decision
@@ -46,12 +49,20 @@ class PolicyEngine:
             step_id=step_id,
         )
 
-        decision = self.policy.decide(
-            axes=axes,
-            metrics=flat_metrics,
-            state=state,
-            thresholds=thresholds,
-        )
+        if self.exploration_wrapper:
+            decision = self.exploration_wrapper.decide(
+                axes=axes,
+                metrics=flat_metrics,
+                state=state,
+                thresholds=thresholds,
+            )
+        else:
+            decision = self.policy.decide(
+                axes=axes,
+                metrics=flat_metrics,
+                state=state,
+                thresholds=thresholds,
+            )
 
         # --------------------------------------------------------
         # Optional audit logging
@@ -84,6 +95,8 @@ class PolicyEngine:
             tau_hard=thresholds.tau_hard,
             action=decision.action,
             collapse_probability=decision.collapse_probability,
+            decision_mode=decision.decision_mode,
+            propensity=decision.propensity,
         )
 
     def log_policy_event(self, *, memory, run_id, step_id, decision):

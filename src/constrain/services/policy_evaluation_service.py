@@ -1,3 +1,6 @@
+"""constrain.services.policy_evaluation_service
+Service for evaluating policy intervention effectiveness.
+"""
 from __future__ import annotations
 
 import time
@@ -336,7 +339,7 @@ class PolicyEvaluationService:
             "╠══════════════════════════════════════════════════════════════╣",
             "║ CURRENT RUN METRICS                                          ║",
             "╠──────────────────────────────────────────────────────────────╣",
-            f"║ Accuracy:              {accuracy:>6.2f}%                     ║",
+            f"║ Accuracy:              {accuracy:>6.2f}%                           ║",
             f"║ Intervention Rate:     {intervention_rate:>6.2f}%            ║",
             f"║ Interventions Helped:  {helped:>6d}                          ║",
             f"║ Interventions Harmed:  {harmed:>6d}                          ║",

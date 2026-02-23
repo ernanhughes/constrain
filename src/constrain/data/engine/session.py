@@ -144,6 +144,7 @@ def _import_orm_models():
     Base.metadata knows about them before create_all().
     """
     from constrain.data.orm.calibration import CalibrationORM
+    from constrain.data.orm.causal_evaluation import CausalEvaluationORM
     from constrain.data.orm.collapse_signal import CollapseSignalORM
     from constrain.data.orm.derived_metrics import DerivedMetricsORM
     from constrain.data.orm.embedding import EmbeddingORM

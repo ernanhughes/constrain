@@ -20,7 +20,7 @@ def debug_feature_extraction(limit=1000):
                 "run_id": s.run_id,
                 "problem_id": s.problem_id,
                 "intervention_helped": s.intervention_helped,
-                "final_correct": s.final_correct,
+                "final_correct": s.intervention_helped,
             } for s in summaries])
             print(f"Problem summaries fetched: {len(summaries_df)}")
             

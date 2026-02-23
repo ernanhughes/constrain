@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, Text
+from sqlalchemy import Column, Float, ForeignKey, Integer, Text, Boolean
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base
@@ -31,6 +31,12 @@ class StepORM(Base):
     phase = Column(Text, nullable=False)
 
     collapse_probability = Column(Float, nullable=True)
+
+    intervention_mode = Column(Text, nullable=True)       
+    propensity_score = Column(Float, nullable=True)       
+    randomized = Column(Boolean, nullable=False, default=False)
+    risk_score = Column(Float, nullable=True)             
+    intervention_intensity = Column(Float, nullable=True) 
 
     timestamp = Column(Float, nullable=False)
 

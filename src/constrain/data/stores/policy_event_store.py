@@ -40,6 +40,8 @@ class PolicyEventStore(BaseSQLAlchemyStore[PolicyEventDTO]):
         tau_hard: float,
         action: str,
         collapse_probability: Optional[float] = None,
+        decision_mode: str = "deterministic",
+        propensity: float = 1.0,
     ) -> PolicyEventDTO:
 
         now = time.time()
@@ -54,6 +56,8 @@ class PolicyEventStore(BaseSQLAlchemyStore[PolicyEventDTO]):
                 tau_hard=float(tau_hard),
                 action=action,
                 collapse_probability=collapse_probability,
+                decision_mode=decision_mode,
+                propensity=float(propensity),
                 created_at=now,
             )
             s.add(obj)

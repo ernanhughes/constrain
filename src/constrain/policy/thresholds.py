@@ -62,80 +62,31 @@ class CalibrationThresholdProvider(ThresholdProvider):
 
     def get(self, *, cfg, memory: Memory, run_id: str, step_id=None):
 
-        # -----------------------------------------------------
-        # 1️⃣ Try existing calibration record for this run
-        # -----------------------------------------------------
+        # 1️⃣ Check persisted calibration for run
         calibration = memory.calibrations.get_latest(
             policy_mode=self.policy_mode,
             run_id=run_id,
         )
 
-        if calibration is not None:
+        if calibration:
             return Thresholds(
-                tau_soft=calibration.tau_soft,
-                tau_medium=calibration.tau_medium,
-                tau_hard=calibration.tau_hard,
+                calibration.tau_soft,
+                calibration.tau_medium,
+                calibration.tau_hard,
             )
 
-        # -----------------------------------------------------
-        # 2️⃣ Try calibrating current run
-        # -----------------------------------------------------
+        # 2️⃣ Compute from logs (NO persistence)
         calibrator = LogCalibrator()
 
         try:
             return calibrator.calibrate(memory=memory, run_id=run_id)
 
-        except ValueError as e:
-            logger.warning(
-                "Calibration failed for current run %s (%s). Trying fallback.",
-                run_id,
-                str(e),
-            )
+        except ValueError:
+            pass
 
-        # -----------------------------------------------------
-        # 3️⃣ Try previous completed run
-        # -----------------------------------------------------
-        try:
-            previous_run_id = memory.runs.get_previous_completed_run(run_id)
+        # 3️⃣ Fallbacks (pure)
+        previous_run_id = memory.runs.get_previous_completed_run(run_id)
+        if previous_run_id:
+            return calibrator.calibrate(memory=memory, run_id=previous_run_id)
 
-            if previous_run_id:
-                logger.info(
-                    "Using thresholds from previous run: %s",
-                    previous_run_id,
-                )
-                return calibrator.calibrate(
-                    memory=memory,
-                    run_id=previous_run_id,
-                )
-
-        except Exception as e:
-            logger.warning(
-                "Previous run calibration failed: %s",
-                str(e),
-            )
-
-        # -----------------------------------------------------
-        # 4️⃣ Try global calibration (no run filter)
-        # -----------------------------------------------------
-        try:
-            logger.info("Attempting global calibration fallback.")
-            return calibrator.calibrate(memory=memory, run_id=None)
-
-        except Exception as e:
-            logger.warning(
-                "Global calibration failed: %s",
-                str(e),
-            )
-
-        # -----------------------------------------------------
-        # 5️⃣ Final fallback: static config
-        # -----------------------------------------------------
-        logger.warning(
-            "Falling back to static config thresholds."
-        )
-
-        return Thresholds(
-            tau_soft=cfg.tau_soft,
-            tau_medium=cfg.tau_medium,
-            tau_hard=cfg.tau_hard,
-        )
+        return calibrator.calibrate(memory=memory, run_id=None)

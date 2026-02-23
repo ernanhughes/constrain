@@ -1,3 +1,6 @@
+"""constrain.services.hf_embedder_service
+HuggingFace Embedder Service
+"""
 import logging
 from typing import List
 

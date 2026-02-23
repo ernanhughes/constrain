@@ -12,6 +12,7 @@ class ThresholdQuery:
     # Scope
     run_id: Optional[str] = None                 # use this run only
     include_run_ids: Optional[Sequence[str]] = None  # explicit set of runs
+    exclude_run_ids: Optional[Sequence[str]] = None  # explicit set of runs
     last_n_runs: Optional[int] = None            # most recent runs (by start_time)
     last_n_steps: Optional[int] = None           # most recent steps (by timestamp)
 
