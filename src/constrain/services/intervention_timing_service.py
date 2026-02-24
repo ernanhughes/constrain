@@ -145,7 +145,7 @@ def main():
     memory = Memory(cfg.db_url)
 
     # Get most recent run
-    runs = memory.runs.get_recent(limit=1)
+    runs = memory.runs.get_recent_runs(limit=1)
     if not runs:
         print("❌ No runs found")
         return
@@ -163,13 +163,13 @@ def main():
     print(f"\nInterventions analyzed: {result['n_analyzed_interventions']}")
     print(f"Collapsed problems: {result['n_collapsed_problems']}")
     print("\nTiming statistics:")
-    print(f"  Mean delta: {result['mean_delta']:.2f} steps")
-    print(f"  Median delta: {result['median_delta']:.2f} steps")
+    print(f"  Mean delta: {result['mean_delta']} steps")
+    print(f"  Median delta: {result['median_delta']} steps")
     print(f"  Std delta: {result.get('std_delta', 'N/A')}")
     print("\nDistribution:")
-    print(f"  ≤1 step to collapse: {result['pct_delta_le_1']:.1f}%")
-    print(f"  ≤2 steps to collapse: {result['pct_delta_le_2']:.1f}%")
-    print(f"  ≥3 steps to collapse: {result['pct_delta_ge_3']:.1f}%")
+    print(f"  ≤1 step to collapse: {result['pct_delta_le_1']}%")
+    print(f"  ≤2 steps to collapse: {result['pct_delta_le_2']}%")
+    print(f"  ≥3 steps to collapse: {result['pct_delta_ge_3']}%")
     print("=" * 60)
 
 

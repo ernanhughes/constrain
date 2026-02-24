@@ -16,7 +16,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -24,8 +24,6 @@ import xgboost as xgb
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
-from constrain.evaluation.trajectory.statistical_comparison import \
-    BootstrapComparator
 from constrain.evaluation.trajectory.trajectory_reconstructor import \
     TrajectoryReconstructor
 from constrain.config import get_config
@@ -395,7 +393,7 @@ class CollapsePredictionService:
         baseline_auc = by_run[baseline_run]
         
         # Bootstrap comparisons
-        comparator = BootstrapComparator(seed=self.config.random_state)
+        # comparator = BootstrapComparator(seed=self.config.random_state)
         results = {}
         
         for run_id, auc in by_run.items():

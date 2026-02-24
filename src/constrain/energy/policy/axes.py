@@ -1,7 +1,7 @@
 from constrain.energy.axes.bundle import AxisBundle
 from constrain.energy.custom_types import Verdict
 
-from .base import PolicyLike
+from .base import PolicyLike, get_axis, missing_to_review
 
 
 class AxisOnlyPolicy(PolicyLike):
@@ -34,9 +34,9 @@ class AxisOnlyPolicy(PolicyLike):
         )
 
     def decide(self, axes: AxisBundle, effectiveness_score: float) -> Verdict:
-        pr = _get_axis(axes, "participation_ratio")
-        s = _get_axis(axes, "sensitivity")
-        if _missing_to_review(pr, s):
+        pr = get_axis(axes, "participation_ratio")
+        s = get_axis(axes, "sensitivity")
+        if missing_to_review(pr, s):
             return Verdict.REVIEW
 
         if self.pr_reject is not None and pr > self.pr_reject:

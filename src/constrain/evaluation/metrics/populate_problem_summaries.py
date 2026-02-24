@@ -46,7 +46,7 @@ def compute_problem_summary(memory: Memory, run_id: str, problem_id: int) -> dic
         final_accuracy = steps[-1].accuracy if steps[-1].accuracy is not None else 0.0
         final_correct = int(final_accuracy > 0.5)
 
-        initial_accuracy = steps[0].accuracy if steps[0].accuracy is not None else 0.0
+        # initial_accuracy = steps[0].accuracy if steps[0].accuracy is not None else 0.0
 
         num_interventions = len(interventions)
         any_intervention = num_interventions > 0

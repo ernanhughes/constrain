@@ -221,8 +221,8 @@ def train_models(train_df, output_path):
 
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-        A_train, A_test = A.iloc[train_idx], A.iloc[test_idx]
-
+        A_train = A.iloc[train_idx]
+        # A_train, A_test = A.iloc[train_idx], A.iloc[test_idx]
         # ─────────────────────────────
         # PROPENSITY MODEL
         # ─────────────────────────────
@@ -232,11 +232,11 @@ def train_models(train_df, output_path):
         p_hat = prop_model.predict_proba(X_test)[:, 1]
         print("Propensity range:", p_hat.min(), p_hat.max())
 
-        eps = 0.01
-        w_test = (
-            A_test / (p_hat + eps)
-            + (1 - A_test) / (1 - p_hat + eps)
-        )
+        # eps = 0.01
+        # w_test = (
+        #     A_test / (p_hat + eps)
+        #     + (1 - A_test) / (1 - p_hat + eps)
+        # )
 
         # ─────────────────────────────
         # OUTCOME MODEL (IPW)
@@ -283,7 +283,7 @@ def train_models(train_df, output_path):
         # ─────────────────────────────
         # FALSIFICATION TEST
         # ─────────────────────────────
-        A_shuffled = np.random.permutation(A_test.values)
+        # A_shuffled = np.random.permutation(A_test.values)
 
         fake_effects = []
         for i in range(min(200, len(X_test))):

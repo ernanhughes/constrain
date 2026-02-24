@@ -36,7 +36,7 @@ class DoublyRobustEstimator:
             # Propensity model (if needed)
             e_model = LogisticRegression()
             e_model.fit(X[train_idx], T[train_idx])
-            e_hat = e_model.predict_proba(X[test_idx])[:,1]
+            # e_hat = e_model.predict_proba(X[test_idx])[:,1]
 
             # DR correction
             correction = (

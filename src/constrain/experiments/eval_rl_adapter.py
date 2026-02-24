@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import math
-import time
 from collections import deque
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -119,23 +118,23 @@ def eval_one(
         if schedule_type == "blocks":
             if t > 0 and (t % block_size == 0):
                 model.reset()
-            task = tasks[(t // block_size) % len(tasks)]
-        else:
-            # crude dirichlet-ish: alpha small => peaky weights
-            # we just implement a simple temperatured categorical
-            if alpha <= 0.2:
-                probs = [0.8, 0.1, 0.1]
-            elif alpha <= 0.5:
-                probs = [0.45, 0.30, 0.25]
-            else:
-                probs = [1/3, 1/3, 1/3]
-            task = tasks[int(torch.multinomial(torch.tensor(probs), 1).item())]
+            # task = tasks[(t // block_size) % len(tasks)]
+        # else:
+        #     # crude dirichlet-ish: alpha small => peaky weights
+        #     # we just implement a simple temperatured categorical
+        #     if alpha <= 0.2:
+        #         probs = [0.8, 0.1, 0.1]
+        #     elif alpha <= 0.5:
+        #         probs = [0.45, 0.30, 0.25]
+        #     else:
+        #         probs = [1/3, 1/3, 1/3]
+            # task = tasks[int(torch.multinomial(torch.tensor(probs), 1).item())]
 
-        x = _sample_batch(task, cfg.batch_size).to(device)
-        y = x[:, 0]
+        # x = _sample_batch(task, cfg.batch_size).to(device)
+        # y = x[:, 0]
 
-        logits = model(x)
-        loss = crit(logits, y)
+        # logits = model(x)
+        # loss = crit(logits, y)
 
         unc = model.uncertainty()
         prev = energy_hist[-1] if energy_hist else unc
