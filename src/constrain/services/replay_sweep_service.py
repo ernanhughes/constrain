@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import List, Dict, Any, Iterable, Optional
+from typing import List, Iterable, Optional
 
 import numpy as np
 import pandas as pd
@@ -58,6 +58,9 @@ class ReplaySweepService:
                     tau_medium=tau_medium,
                     tau_hard=tau_hard,
                 )
+
+                if replay["total_steps"] == 0:
+                    continue
 
                 # Optional collapse calculation
                 collapse_rate = None
@@ -188,7 +191,7 @@ def main():
         tau_medium_values=np.linspace(0.3, 0.7, 10),
         tau_hard_values=[0.8],
         collapse_threshold=0.75,
-        limit_runs=20,
+        limit_runs=200,
     )
 
     df.to_csv("replay_sweep_results.csv", index=False)

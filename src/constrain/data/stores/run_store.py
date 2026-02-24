@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from sqlalchemy import desc
+from sqlalchemy import desc, join
 from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM
+from constrain.data.orm.step import StepORM
 from constrain.data.schemas.run import RunDTO
 from constrain.data.stores.base_store import BaseSQLAlchemyStore
 
@@ -75,6 +76,21 @@ class RunStore(BaseSQLAlchemyStore[RunDTO]):
                 query = query.order_by(RunORM.start_time)
 
             rows = query.all()
+            return [self._to_dto(row) for row in rows]
+
+        return self._run(op)
+
+
+    def get_recent_runs(self, limit: int = 50) -> list[RunDTO]:
+        def op(s):
+            rows = (
+                s.query(RunORM)
+                .join(StepORM, StepORM.run_id == RunORM.run_id)
+                .group_by(RunORM.run_id)
+                .order_by(RunORM.start_time.desc())
+                .limit(limit)
+                .all()
+            )
             return [self._to_dto(row) for row in rows]
 
         return self._run(op)
