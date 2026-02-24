@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from constrain.data.memory import Memory
 from constrain.policy.custom_types import Thresholds
-from constrain.policy.threshold_query import ThresholdQuery
+from constrain.policy.threshold.threshold_query import ThresholdQuery
 
 
 @dataclass

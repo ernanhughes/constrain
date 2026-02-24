@@ -29,7 +29,7 @@ from constrain.model import call_model
 from constrain.policy.custom_types import ThresholdProvider
 from constrain.policy.engine import PolicyEngine
 from constrain.policy.registry import PolicyRegistry
-from constrain.policy.thresholds import CalibrationThresholdProvider
+from constrain.policy.threshold.thresholds import CalibrationThresholdProvider
 from constrain.reasoning_state import ReasoningState
 from constrain.utils.dict_utils import flatten_numeric_dict
 

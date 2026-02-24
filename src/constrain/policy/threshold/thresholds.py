@@ -3,11 +3,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from constrain.calibration.recursive import RecursiveCalibrator
+from constrain.policy.threshold.recursive import RecursiveCalibrator
 from constrain.data.memory import Memory
 from constrain.policy.log_calibrator import LogCalibrator
 
-from .custom_types import ThresholdProvider, Thresholds
+from ..custom_types import ThresholdProvider, Thresholds
 from .threshold_query import ThresholdQuery
 
 logger = logging.getLogger(__name__)
