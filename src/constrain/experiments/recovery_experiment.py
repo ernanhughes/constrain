@@ -1,6 +1,7 @@
 # constrain/experiments/recovery_experiment.py
 from __future__ import annotations
 import copy
+import json
 import numpy as np
 from typing import List, Dict, Any
 
@@ -21,18 +22,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-
 class RecoveryExperiment:
-    """
-    Controlled branch experiment:
-
-    For each stored conversation:
-        1. Replay until energy spike
-        2. Clone state
-        3. Branch A: no intervention
-        4. Branch B: apply intervention
-        5. Compare survival extension
-    """
 
     def __init__(self, memory: Memory, gate: VerifiabilityGate, tau_hard: float):
         self.memory = memory
@@ -59,7 +49,7 @@ class RecoveryExperiment:
             if result:
                 logger.info(
                     f"  Spike at iter {result['spike_iteration']} | "
-                    f"Δ survival = {result['delta_survival']}"
+                    f"Δ survival = {result.get('delta_survival', 0.0):.3f} | "
                 )
                 results.append(result)
             else:
@@ -94,77 +84,90 @@ class RecoveryExperiment:
 
     def _run_single_conversation(self, steps, max_depth):
 
-        # Initialize state from first step
         prompt = steps[0].prompt_text
-        state = ReasoningState(prompt)
+        base_temp = steps[0].temperature or 0.7
 
-        energy_spike_iteration = None
+        state = ReasoningState(prompt, temperature=base_temp)
 
-        # Replay until spike
+        spike_iteration = None
+
+        # --- Replay original trajectory until spike ---
         for step in steps:
             state.accept(step.reasoning_text)
 
             if step.total_energy > self.tau_hard:
-                energy_spike_iteration = step.iteration
+                spike_iteration = step.iteration
                 break
 
-        if energy_spike_iteration is None:
-            return None  # No collapse risk observed
+        if spike_iteration is None:
+            return None
 
-        # Clone state for branch comparison
-        state_no_fix = copy.deepcopy(state)
-        state_fix = copy.deepcopy(state)
+        # --- Clone state for three arms ---
+        state_A = copy.deepcopy(state)
+        state_B = copy.deepcopy(state)
+        state_C = copy.deepcopy(state)
 
-        # Branch A: no intervention
-        survival_a = self._continue_trajectory(state_no_fix, max_depth)
+        # --- Apply interventions ---
+        # A = baseline (do nothing)
 
-        # Branch B: apply intervention
-        self._apply_intervention(state_fix)
-        survival_b = self._continue_trajectory(state_fix, max_depth)
+        # B = temperature reduction
+        state_B.temperature = max(0.2, state_B.temperature * 0.7)
+
+        # C = revert + temperature reduction
+        if len(state_C.history) >= 2:
+            state_C.revert()
+        state_C.temperature = max(0.2, state_C.temperature * 0.7)
+
+        # --- Continue trajectories ---
+        metrics_A = self._continue(state_A, max_depth)
+        metrics_B = self._continue(state_B, max_depth)
+        metrics_C = self._continue(state_C, max_depth)
 
         return {
             "problem_id": steps[0].problem_id,
-            "spike_iteration": energy_spike_iteration,
-            "survival_no_fix": survival_a,
-            "survival_fix": survival_b,
-            "delta_survival": survival_b - survival_a,
+            "spike_iteration": spike_iteration,
+            "A": metrics_A,
+            "B": metrics_B,
+            "C": metrics_C,
         }
 
     # ============================================================
     # CONTINUE TRAJECTORY
     # ============================================================
 
-    def _continue_trajectory(self, state: ReasoningState, max_depth: int):
+    def _continue(self, state: ReasoningState, max_depth: int):
+
+        survival = 0
+        avoided_collapse = True
+        min_margin = float("inf")
 
         for i in range(max_depth):
+
             prompt_text = f"Solve step by step:\n\n{state.current}"
             reasoning = call_model(prompt_text, state.temperature)
 
             energy, axes, _ = self.gate.compute_axes(
                 claim=reasoning,
-                evidence_texts=[state.current]
+                evidence_texts=[state.prompt] + state.history
             )
+            print(f"  Iter {i+1} | Energy: {energy.energy:.4f} | Tau hard: {self.tau_hard:.4f} \n {json.dumps(energy.to_dict(), indent=2)}")
 
-            if axes.get("energy", 0) > self.tau_hard:
-                return i  # collapsed here
+            margin = self.tau_hard - energy.energy
+            min_margin = min(min_margin, margin)
+
+            if energy.energy > self.tau_hard:
+                avoided_collapse = False
+                break
 
             state.accept(reasoning)
+            survival += 1
 
-        return max_depth  # survived full depth
-
-    # ============================================================
-    # INTERVENTION LOGIC
-    # ============================================================
-
-    def _apply_intervention(self, state: ReasoningState):
-
-        current_temp = state.temperature if state.temperature is not None else 0.7
-
-        state.temperature = max(0.1, current_temp - 0.3)
-
-        logger.info(f"      🔧 Temperature reduced to {state.temperature:.2f}")
-
-
+        return {
+            "survival": survival,
+            "avoided_collapse": avoided_collapse,
+            "min_energy_margin": min_margin,
+        }
+    
 
 # ============================================================
 # RUN SELECTION LOGIC
@@ -205,6 +208,7 @@ def main():
     # --------------------------------------------------------
 
     run_id = find_run_with_spike(memory)
+    run_id = "run_2898a03a"
 
     # run_id = find_recent_large_run(memory, min_steps=100)
 

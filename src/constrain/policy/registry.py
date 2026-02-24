@@ -20,6 +20,12 @@ from constrain.policy.policies import (
     RandomPolicy,
     GeometryBandPolicy,
     LearnedPolicyWrapper,
+    SoftInterventionPolicyWrapper,
+)
+
+from constrain.policy.soft_intervention_engine import (
+    SoftInterventionEngine,
+    RandomizedSoftInterventionPolicy,
 )
 
 from constrain.policy.learned_policy import LearnedPolicy
@@ -133,4 +139,21 @@ class PolicyRegistry:
                 shadow=self.learned_shadow,
             )
 
+            if policy_id == 100:  # Soft Intervention (deterministic)
+                engine = SoftInterventionEngine()
+                return SoftInterventionPolicyWrapper(
+                    params=params,
+                    engine=engine,
+                    shadow=False,
+                )
+
+            if policy_id == 101:  # Randomized Soft Intervention (for causal data)
+                engine = SoftInterventionEngine()
+                return SoftInterventionPolicyWrapper(
+                    params=params,
+                    engine=engine,
+                    shadow=False,
+                    randomized=True,
+                    randomization_rate=0.5,
+                )
         raise ValueError(f"Unknown policy_id: {policy_id}")

@@ -22,6 +22,7 @@ class ExperimentORM(Base):
     seeds = Column(Text, nullable=False)
     num_problems = Column(Integer, nullable=True)
     num_recursions = Column(Integer, nullable=True)
+    initial_temperature = Column(Float, nullable=True)
 
     # Timing
     start_time = Column(Float, nullable=False)

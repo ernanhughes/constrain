@@ -1,21 +1,27 @@
 import warnings
 
 from constrain.analysis.stage2.policy_comparison import compare_policies
-from constrain.config import get_config
-from constrain.runner import run
 
 warnings.filterwarnings("ignore")
 
 
 def main():
-    seeds = [42, 43, 44]
-    policy_ids = [0, 4]  # baseline vs energy-policy
+    # seeds = [42, 43, 44]
+    seeds = [42]
+    policy_ids = [0, 5]  # baseline vs energy-policy
 
-    for seed in seeds:
-        for policy_id in policy_ids:
-            run(policy_id=policy_id, seed=seed, num_problems=20)
+    # for seed in seeds:
+    #     for policy_id in policy_ids:
+    #         run(policy_id=policy_id, seed=seed, num_problems=200, num_recursions=12)
 
-    compare_policies(policy_ids=policy_ids, seeds=seeds)
+    compare_policies(
+        policy_ids=policy_ids,
+        seeds=seeds,
+        num_problems=200,
+        num_recursions=12,
+        initial_temperature=1.6,
+    )
+
 
 # def main():
 #     config = get_config()
@@ -30,7 +36,6 @@ def main():
 #         policy_ids=[0, 4, 6],
 #         seeds=[42, 43, 44]
 #     )
-
 
 
 if __name__ == "__main__":

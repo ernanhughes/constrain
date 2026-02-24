@@ -11,11 +11,13 @@ from constrain.runner import run
 from constrain.services.policy_evaluation_service import PolicyEvaluationService
 
 
-def I compare_policies(
+def compare_policies(
     policy_ids: List[int],
     seeds: tuple[int, ...] = (42, 43, 44),
     num_problems: Optional[int] = None,
+    num_recursions: Optional[int] = None,
     experiment_name: Optional[str] = None,
+    initial_temperature: Optional[float] = None,
 ) -> pd.DataFrame:
     """
     Run policy comparison experiment with automatic evaluation.
@@ -34,8 +36,9 @@ def I compare_policies(
         policy_ids=policy_ids,
         seeds=list(seeds),
         num_problems=num_problems or cfg.num_problems,
-        num_recursions=cfg.num_recursions,
+        num_recursions=num_recursions or cfg.num_recursions,
         notes=f"Comparing policies {policy_ids} across seeds {seeds}",
+        initial_temperature=initial_temperature,
     )
     experiment = memory.experiments.create(experiment_dto)
     experiment_id = experiment.id
@@ -62,6 +65,8 @@ def I compare_policies(
                     policy_id=pid,
                     seed=seed,
                     num_problems=num_problems,
+                    num_recursions=num_recursions,
+                    initial_temperature=initial_temperature,
                 )
                 run_ids.append(run_id)
 

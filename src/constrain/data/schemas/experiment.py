@@ -22,6 +22,7 @@ class ExperimentDTO(BaseModel):
     seeds: List[int] = []
     num_problems: Optional[int] = None
     num_recursions: Optional[int] = None
+    initial_temperature: Optional[float] = None
 
     # Timing
     start_time: float
@@ -92,6 +93,7 @@ class ExperimentDTO(BaseModel):
         seeds: List[int],
         num_problems: Optional[int] = None,
         num_recursions: Optional[int] = None,
+        initial_temperature: Optional[float] = None,
         notes: Optional[str] = None,
     ) -> "ExperimentDTO":
         """Factory method to create a new experiment DTO."""
@@ -106,4 +108,5 @@ class ExperimentDTO(BaseModel):
             start_time=time.time(),
             status="running",
             notes=notes,
+            initial_temperature=initial_temperature,
         )

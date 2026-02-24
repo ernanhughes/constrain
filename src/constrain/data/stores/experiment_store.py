@@ -60,6 +60,7 @@ class ExperimentStore(BaseSQLAlchemyStore[ExperimentDTO]):
             seeds=data["seeds"],  # Already serialized by field_serializer
             num_problems=data["num_problems"],
             num_recursions=data["num_recursions"],
+            initial_temperature=data["initial_temperature"],
             start_time=data["start_time"],
             end_time=data["end_time"],
             status=data["status"],

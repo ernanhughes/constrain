@@ -51,7 +51,7 @@ class CollapsePredictionService:
         Returns analysis results dict (for reporting/persistence).
         """
         # 1. Reconstruct trajectories using shared infrastructure
-        problem_df = self.reconstructor.build_problem_dataframe(run_id)
+        problem_df = self.reconstructor.get_step_dataframe(run_id)
         if len(problem_df) < min_samples:
             return self._skip_result(run_id, "insufficient_samples", len(problem_df), min_samples)
 
@@ -158,6 +158,13 @@ class CollapsePredictionService:
     # ============================================================
 
     def _engineer_labels(self, df: pd.DataFrame, horizon: int) -> pd.DataFrame:
+        required = {"problem_id", "iteration", "total_energy", "phase"}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(
+                f"Step-level dataframe required. Missing columns: {missing}"
+            )
+
         """Label each step with whether collapse occurs at t+horizon."""
         df = df.sort_values(["problem_id", "iteration"]).copy()
         

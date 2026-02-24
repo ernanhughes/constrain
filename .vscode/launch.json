@@ -40,5 +40,14 @@
             "args": [
             ]
         },
+        {
+            "name": "recovery_experiment01",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.experiments.recovery_experiment01",
+            "args": [
+            ]
+        },
     ]
 }

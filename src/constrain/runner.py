@@ -43,7 +43,9 @@ def run(
     policy_id: int = 4,
     seed: int = 42,
     num_problems: Optional[int] = None,
+    num_recursions: Optional[int] = None,
     threshold: Optional[float] = None,
+    initial_temperature: Optional[float] = None,
 ) -> str:
     """
     Run experiment with default CalibrationThresholdProvider.
@@ -55,10 +57,11 @@ def run(
         policy_id=policy_id,
         seed=seed,
         num_problems=num_problems,
+        num_recursions=num_recursions,
         threshold_provider=threshold_provider,
         threshold_override=threshold,
+        initial_temperature_override=initial_temperature,
     )
-
 
 def run_with_provider(
     policy_id: int,
@@ -89,8 +92,10 @@ def run_experiment(
     policy_id: int,
     seed: int,
     num_problems: Optional[int],
+    num_recursions: Optional[int],
     threshold_provider: ThresholdProvider,
     threshold_override: Optional[float] = None,
+    initial_temperature_override: Optional[float] = None,
 ) -> str:
     """
     Core experiment runner — all logic lives here.
@@ -133,9 +138,11 @@ def run_experiment(
         policy_id=policy_id,
         seed=seed,
         num_problems=num_problems,
+        num_recursions=num_recursions,
         threshold_provider=threshold_provider,
         threshold_override=threshold_override,
         start_time=start_time,
+        initial_temperature_override=initial_temperature_override,
     )
     memory.runs.create(run_dto)
 
@@ -177,6 +184,7 @@ def run_experiment(
         gate=gate,
         engine=engine,
         run_id=run_id,
+        num_recursions=num_recursions,
         seed=seed,
     )
 
@@ -205,9 +213,11 @@ def _create_run_dto(
     policy_id: int,
     seed: int,
     num_problems: Optional[int],
+    num_recursions: Optional[int], 
     threshold_provider: ThresholdProvider,
     threshold_override: Optional[float],
     start_time: float,
+    initial_temperature_override: Optional[float],
 ) -> RunDTO:
     """
     Create RunDTO with thresholds from provider (or override).
@@ -228,9 +238,13 @@ def _create_run_dto(
     return RunDTO(
         run_id=run_id,
         model_name=cfg.model_name,
-        initial_temperature=cfg.initial_temperature,
+        initial_temperature=(
+            initial_temperature_override
+            if initial_temperature_override is not None
+            else cfg.initial_temperature
+        ),
         num_problems=num_problems or cfg.num_problems,
-        num_recursions=cfg.num_recursions,
+        num_recursions=num_recursions or cfg.num_recursions,
         tau_soft=tau_soft,
         tau_medium=tau_medium,
         tau_hard=tau_hard,
@@ -255,6 +269,7 @@ def _run_problem_loop(
     gate: VerifiabilityGate,
     engine: PolicyEngine,
     run_id: str,
+    num_recursions: Optional[int],
     seed: int,
 ):
     """
@@ -272,6 +287,7 @@ def _run_problem_loop(
             engine=engine,
             run_id=run_id,
             seed=seed,
+            num_recursions=num_recursions,
         )
 
 
@@ -284,55 +300,73 @@ def _run_single_problem(
     gate: VerifiabilityGate,
     engine: PolicyEngine,
     run_id: str,
+    num_recursions: Optional[int],
     seed: int,
 ):
     """
     Run a single problem through all iterations.
-    
-    Handles: model calls, energy computation, policy decisions, state updates.
+
+    Clean state flow:
+    1. Generate reasoning
+    2. Compute energy
+    3. Policy decision
+    4. Apply decision (accept/revert/reset)
+    5. Persist
     """
+
     prompt = example["question"]
     gold_answer = example["answer"].split("####")[-1].strip()
-    
-    state = ReasoningState(prompt)
-    state.temperature = cfg.initial_temperature
 
-    for iteration in range(cfg.num_recursions):
+    run_obj = memory.runs.get_by_id(run_id)
+    state = ReasoningState(prompt, temperature=run_obj.initial_temperature)
+
+    depth = num_recursions if num_recursions is not None else cfg.num_recursions
+    for iteration in range(depth):
+
         try:
-            # ─────────────────────────────────────────────────────
-            # 1. Model Generation (with caching)
-            # ─────────────────────────────────────────────────────
+            # =====================================================
+            # 1️⃣ GENERATION
+            # =====================================================
+
             prompt_text = f"Solve step by step:\n\n{state.current}"
-            
+
             cached = memory.steps.get_reasoning_by_prompt(prompt, state.temperature)
+
             if cached:
                 reasoning = cached.reasoning_text
             else:
                 reasoning = call_model(prompt_text, state.temperature)
 
-            # ─────────────────────────────────────────────────────
-            # 2. Evidence + Energy Computation
-            # ─────────────────────────────────────────────────────
+            # IMPORTANT: do NOT modify state yet.
+            # We evaluate this reasoning first.
+
+            # =====================================================
+            # 2️⃣ ENERGY + METRICS
+            # =====================================================
+
             evidence_texts = _build_evidence(prompt, state.history)
+
             energy_result, axes, _ = gate.compute_axes(
                 claim=reasoning,
                 evidence_texts=evidence_texts,
             )
-            
-            stability_energy = _compute_stability_energy(reasoning, state.history, gate)
+
+            stability_energy = _compute_stability_energy(
+                claim=reasoning,
+                history=state.history,
+                gate=gate,
+            )
+
             total_energy = axes.get("energy")
 
-            # ─────────────────────────────────────────────────────
-            # 3. Metrics Computation
-            # ─────────────────────────────────────────────────────
             all_metrics = MetricsCalculator.compute_all(
                 reasoning=reasoning,
                 gold_answer=gold_answer,
                 energy_metrics=energy_result.to_dict(),
                 cfg=cfg,
             )
-            
-            # Merge energy axes into metrics
+
+            # Merge energy axes
             all_metrics.update({
                 "energy": axes.get("energy"),
                 "participation_ratio": axes.get("participation_ratio"),
@@ -342,11 +376,13 @@ def _run_single_problem(
                 "iteration": iteration,
                 "evidence_count": len(state.history),
             })
+
             flat_metrics = flatten_numeric_dict(all_metrics)
 
-            # ─────────────────────────────────────────────────────
-            # 4. Policy Decision + State Update
-            # ─────────────────────────────────────────────────────
+            # =====================================================
+            # 3️⃣ POLICY DECISION
+            # =====================================================
+
             decision: PolicyDecision = engine.apply(
                 axes=axes,
                 flat_metrics=flat_metrics,
@@ -356,24 +392,48 @@ def _run_single_problem(
                 step_id=None,
             )
 
-            _apply_policy_action(state, decision.action, decision.new_temperature)
+            # =====================================================
+            # 4️⃣ APPLY POLICY (CORRECT STATE FLOW)
+            # =====================================================
 
-            # ─────────────────────────────────────────────────────
-            # 5. Persistence: Step + Metrics + Interventions
-            # ─────────────────────────────────────────────────────
-            step_dto = _create_step_dto(
+            new_temp = decision.new_temperature
+
+            if decision.action == "ACCEPT":
+                state.accept(reasoning)
+
+            elif decision.action == "REVERT":
+                state.revert()
+
+            elif decision.action in ("RESET", "RESET_PROMPT"):
+                state.reset()
+
+            # Temperature always updated explicitly
+            state.temperature = new_temp
+
+            # =====================================================
+            # 5️⃣ PERSIST STEP
+            # =====================================================
+
+            step_dto = StepDTO(
                 run_id=run_id,
                 problem_id=pid,
                 iteration=iteration,
                 prompt_text=prompt,
                 reasoning_text=reasoning,
+                collapse_probability=decision.collapse_probability,
                 gold_answer=gold_answer,
-                all_metrics=all_metrics,
-                axes=axes,
+                extracted_answer=all_metrics["extracted_answer"],
+                total_energy=total_energy,
+                grounding_energy=total_energy,
                 stability_energy=stability_energy,
-                decision=decision,
-                state=state,
+                correctness=all_metrics.get("correctness"),
+                accuracy=all_metrics.get("accuracy"),
+                temperature=state.temperature,
+                policy_action=decision.action,
+                phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[all_metrics["phase_value"]],
+                timestamp=time.time(),
             )
+
             step_dto = memory.steps.create(step_dto)
 
             engine.log_policy_event(
@@ -396,13 +456,17 @@ def _run_single_problem(
                     problem_id=pid,
                     iteration=iteration,
                     action=decision.action,
-                    new_temperature=decision.new_temperature,
+                    new_temperature=new_temp,
                 )
 
         except Exception as e:
-            logger.exception("❌ Crash at problem %d, iteration %d: %s", pid, iteration, e)
-            break  # Stop this problem, continue to next
-
+            logger.exception(
+                "❌ Crash at problem %d, iteration %d: %s",
+                pid,
+                iteration,
+                e,
+            )
+            break
 
 # =============================================================================
 # HELPER: Utility functions (small, focused, testable)
@@ -431,54 +495,6 @@ def _compute_stability_energy(
         evidence_texts=split_into_sentences(last),
     )
     return stability_axes.get("energy", 0.0)
-
-
-def _apply_policy_action(state: ReasoningState, action: str, new_temperature: float):
-    """Apply policy action to reasoning state."""
-    if action == "ACCEPT":
-        state.accept(state.current or "")
-    elif action == "REVERT":
-        state.revert()
-    elif action in ("RESET", "RESET_PROMPT"):
-        state.reset()
-    
-    state.temperature = new_temperature
-
-
-def _create_step_dto(
-    *,
-    run_id: str,
-    problem_id: int,
-    iteration: int,
-    prompt_text: str,
-    reasoning_text: str,
-    gold_answer: str,
-    all_metrics: dict,
-    axes: dict,
-    stability_energy: float,
-    decision: PolicyDecision,
-    state: ReasoningState,
-) -> StepDTO:
-    """Create StepDTO from all computed values."""
-    return StepDTO(
-        run_id=run_id,
-        problem_id=problem_id,
-        iteration=iteration,
-        prompt_text=prompt_text,
-        reasoning_text=reasoning_text,
-        collapse_probability=decision.collapse_probability,
-        gold_answer=gold_answer,
-        extracted_answer=all_metrics["extracted_answer"],
-        total_energy=axes.get("energy"),
-        grounding_energy=axes.get("energy"),  # or energy_result.energy if separate
-        stability_energy=stability_energy,
-        correctness=all_metrics.get("correctness"),
-        accuracy=all_metrics.get("accuracy"),
-        temperature=state.temperature,
-        policy_action=decision.action,
-        phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[all_metrics["phase_value"]],
-        timestamp=time.time(),
-    )
 
 
 def _log_intervention(
