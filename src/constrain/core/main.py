@@ -1,7 +1,6 @@
 import warnings
 
-from constrain.analysis.stage2.policy_comparison import compare_policies
-from constrain.runner import run
+from constrain.core.runner import run
 warnings.filterwarnings("ignore")
 
 

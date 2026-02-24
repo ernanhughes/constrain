@@ -14,7 +14,7 @@ from .dynamics import (
     is_collapse,
     reset_dynamics,
 )
-from .policy import EnergyControlPolicy
+from .controller import EnergyControlPolicy
 
 __all__ = [
     "ViolationLevel",

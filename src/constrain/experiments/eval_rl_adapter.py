@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import torch
 import torch.nn as nn
 
-from constrain.control.rl_parameter_adapter import (AdapterAction,
+from constrain.experiments.rl_parameter_adapter import (AdapterAction,
                                                     AdapterObservation,
                                                     RLParameterAdapter)
 

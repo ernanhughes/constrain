@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from constrain.control.rl_parameter_adapter import (ActionBounds,
+from constrain.experiments.rl_parameter_adapter import (ActionBounds,
                                                     RLParameterAdapter)
 from constrain.reporting.artifact_store import ArtifactStore
 from constrain.reporting.markdown_report import MarkdownReport

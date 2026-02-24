@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import time
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
+from constrain.evaluation.metrics.metrics_calculator import MetricsCalculator
 from constrain.config import get_config
 from constrain.data.schemas.step import StepDTO
 from constrain.energy.energy_computer import compute_energy
-from constrain.model import call_model
+from constrain.core.model import call_model
 from constrain.policy.learned_policy import LearnedPolicy
 
 

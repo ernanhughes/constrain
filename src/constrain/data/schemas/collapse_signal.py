@@ -2,7 +2,7 @@
 import json
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, field_serializer
 
 
 class CollapseSignalDTO(BaseModel):

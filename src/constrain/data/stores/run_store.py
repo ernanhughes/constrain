@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from sqlalchemy import desc, join
+from sqlalchemy import desc
 from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM

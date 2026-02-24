@@ -9,7 +9,7 @@ from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.services.policy_evaluation_service import PolicyEvaluationService
 from constrain.policy.threshold.thresholds import FixedThresholdProvider
-from constrain.runner import run_with_provider  # ← Use new function
+from constrain.core.runner import run_with_provider  # ← Use new function
 
 # ============================================================
 # Configuration

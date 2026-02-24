@@ -1,5 +1,5 @@
-from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
-from constrain.analysis.stage3.engine.signal_modeling_engine import \
+from constrain.evaluation.metrics.metrics_aggregator import MetricsAggregator
+from constrain.evaluation.signal_discovery.engine.signal_modeling_engine import \
     SignalModelingEngine
 
 

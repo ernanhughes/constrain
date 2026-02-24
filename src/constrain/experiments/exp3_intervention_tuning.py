@@ -18,10 +18,9 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
-from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
+from constrain.evaluation.metrics.metrics_calculator import MetricsCalculator
 from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.energy.embedding.hf_embedder import HFEmbedder
@@ -29,9 +28,8 @@ from constrain.energy.embedding.sqlite_embedding_backend import \
     SQLiteEmbeddingBackend
 from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
-from constrain.model import call_model
+from constrain.core.model import call_model
 from constrain.reasoning_state import ReasoningState
-from constrain.utils.dict_utils import flatten_numeric_dict
 
 logger = logging.getLogger(__name__)
 

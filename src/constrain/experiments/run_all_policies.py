@@ -1,4 +1,4 @@
-from constrain.runner import run
+from constrain.core.runner import run
 
 def main():
     seed = 42

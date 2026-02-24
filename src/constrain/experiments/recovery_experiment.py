@@ -15,7 +15,7 @@ from constrain.energy.embedding.sqlite_embedding_backend import \
     SQLiteEmbeddingBackend
 from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
-from constrain.model import call_model
+from constrain.core.model import call_model
 from constrain.reasoning_state import ReasoningState
 
 logger = logging.getLogger(__name__)

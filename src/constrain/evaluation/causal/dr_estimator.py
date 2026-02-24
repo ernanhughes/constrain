@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
 
 import numpy as np
 from sklearn.model_selection import KFold

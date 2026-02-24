@@ -11,9 +11,9 @@ import numpy as np
 from datasets import load_dataset
 from tqdm.auto import tqdm
 
-from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
-from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
-from constrain.analysis.aggregation.populate_problem_summaries import \
+from constrain.evaluation.metrics.metrics_aggregator import MetricsAggregator
+from constrain.evaluation.metrics.metrics_calculator import MetricsCalculator
+from constrain.evaluation.metrics.populate_problem_summaries import \
     populate_for_run
 from constrain.config import get_config
 from constrain.data.memory import Memory
@@ -25,10 +25,8 @@ from constrain.energy.embedding.sqlite_embedding_backend import \
 from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
-from constrain.model import call_model
+from constrain.core.model import call_model
 from constrain.policy.custom_types import ThresholdProvider
-from constrain.policy.engine import PolicyEngine
-from constrain.policy.registry import PolicyRegistry
 from constrain.policy.threshold.thresholds import CalibrationThresholdProvider
 from constrain.reasoning_state import ReasoningState
 from constrain.utils.dict_utils import flatten_numeric_dict

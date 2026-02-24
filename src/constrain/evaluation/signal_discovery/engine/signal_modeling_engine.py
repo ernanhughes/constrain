@@ -8,9 +8,9 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import GroupKFold
 from xgboost import XGBClassifier
 
-from constrain.analysis.stage3.engine.shap_explainer import ShapExplainer
-from constrain.analysis.stage3.registry.leaderboard import Leaderboard
-from constrain.analysis.stage3.registry.model_registry import ModelRegistry
+from constrain.evaluation.signal_discovery.engine.shap_explainer import ShapExplainer
+from constrain.evaluation.signal_discovery.registry.leaderboard import Leaderboard
+from constrain.evaluation.signal_discovery.registry.model_registry import ModelRegistry
 
 from .bootstrap import BootstrapCI
 from .calibration import ProbabilityCalibration

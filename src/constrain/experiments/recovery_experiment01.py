@@ -16,14 +16,14 @@ from scipy import stats
 from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.recovery_experiment import \
-    RecoveryExperimentDTO  # Fixed: single import
+    RecoveryExperimentDTO  
 from constrain.energy.embedding.hf_embedder import HFEmbedder
 from constrain.energy.embedding.sqlite_embedding_backend import \
     SQLiteEmbeddingBackend
 from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
-from constrain.model import call_model
+from constrain.core.model import call_model
 from constrain.reasoning_state import ReasoningState
 
 logger = logging.getLogger(__name__)

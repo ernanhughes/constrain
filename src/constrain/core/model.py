@@ -4,7 +4,7 @@ from typing import Optional
 
 import requests
 
-from .config import get_config
+from constrain.config import get_config
 
 
 def call_model(

@@ -8,7 +8,7 @@ import pandas as pd
 from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.experiment import ExperimentDTO
-from constrain.runner import run
+from constrain.core.runner import run
 from constrain.services.policy_evaluation_service import \
     PolicyEvaluationService
 

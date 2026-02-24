@@ -143,20 +143,3 @@ def _import_orm_models():
     Ensures all ORM models are imported so that
     Base.metadata knows about them before create_all().
     """
-    from constrain.data.orm.calibration import CalibrationORM
-    from constrain.data.orm.causal_evaluation import CausalEvaluationORM
-    from constrain.data.orm.collapse_signal import CollapseSignalORM
-    from constrain.data.orm.derived_metrics import DerivedMetricsORM
-    from constrain.data.orm.embedding import EmbeddingORM
-    from constrain.data.orm.experiment import ExperimentORM
-    from constrain.data.orm.intervention import InterventionORM
-    from constrain.data.orm.metric import MetricORM
-    from constrain.data.orm.policy_evaluation import PolicyEvaluationORM
-    from constrain.data.orm.policy_event import PolicyEventORM
-    from constrain.data.orm.problem_summary import ProblemSummaryORM
-    from constrain.data.orm.recovery_experiment import RecoveryExperimentORM
-    from constrain.data.orm.reasoning_state import ReasoningStateSnapshotORM
-    from constrain.data.orm.run import RunORM
-    from constrain.data.orm.signal_discovery import SignalDiscoveryORM
-    from constrain.data.orm.signal_report import SignalReportORM
-    from constrain.data.orm.step import StepORM
