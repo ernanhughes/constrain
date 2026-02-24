@@ -12,7 +12,7 @@ def main():
 
     for seed in seeds:
         for policy_id in policy_ids:
-            run(policy_id=policy_id, seed=seed, num_problems=20, num_recursions=6)
+            run(policy_id=policy_id, seed=seed, num_problems=20, num_recursions=6, cached_only=True)
 
     # compare_policies(
     #     policy_ids=policy_ids,

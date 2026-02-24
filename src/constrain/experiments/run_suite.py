@@ -4,7 +4,7 @@ import argparse
 import time
 from pathlib import Path
 
-from constrain.core.io.markdown_report import MarkdownReport
+from constrain.reporting.markdown_report import MarkdownReport
 from constrain.experiments.suite.exp_ablation_paper2 import (
     AblationConfig, Paper2AblationExperiment)
 from constrain.experiments.suite.exp_paper3_eval_srg import (

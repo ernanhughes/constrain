@@ -58,6 +58,7 @@ def run(
     num_recursions: Optional[int] = None,
     threshold: Optional[float] = None,
     initial_temperature: Optional[float] = None,
+    cached_only: bool = False,  
 ) -> str:
     """
     Run experiment with default CalibrationThresholdProvider.
@@ -73,6 +74,7 @@ def run(
         threshold_provider=threshold_provider,
         threshold_override=threshold,
         initial_temperature_override=initial_temperature,
+        cached_only=cached_only,  # ← PASS IT
     )
 
 def run_with_provider(
@@ -80,6 +82,7 @@ def run_with_provider(
     threshold_provider: ThresholdProvider,
     seed: int = 42,
     num_problems: Optional[int] = None,
+    cached_only: bool = False, 
 ) -> str:
     """
     Run experiment with injected ThresholdProvider.
@@ -92,6 +95,7 @@ def run_with_provider(
         num_problems=num_problems,
         threshold_provider=threshold_provider,
         threshold_override=None,
+        cached_only=cached_only,
     )
 
 
@@ -108,6 +112,7 @@ def run_experiment(
     threshold_provider: ThresholdProvider,
     threshold_override: Optional[float] = None,
     initial_temperature_override: Optional[float] = None,
+    cached_only: bool = False,  # ← NEW PARAM
 ) -> str:
     """
     Core experiment runner — all logic lives here.
@@ -118,6 +123,7 @@ def run_experiment(
         num_problems: Number of problems to evaluate (uses config default if None)
         threshold_provider: Strategy for computing tau_soft/medium/hard
         threshold_override: Optional single threshold value (for legacy support)
+        cached_only: If True, replay from cache without generating new steps
     
     Returns:
         run_id: Unique identifier for this experiment run
@@ -173,16 +179,10 @@ def run_experiment(
         sample_count=None,
     )
 
-    # Initialize policy engine
-    engine = PolicyEngine(
-        policy=PolicyRegistry.from_id(policy_id),
-        threshold_provider=threshold_provider,
-    )
 
     # ─────────────────────────────────────────────────────────────
     # STAGE 1: Load Dataset
     # ─────────────────────────────────────────────────────────────
-    cached_only = True
     if cached_only:
         dataset = load_cached_problems(
             memory=memory,
@@ -196,28 +196,43 @@ def run_experiment(
 
     logger.info("📊 Loaded %d problems for evaluation", len(dataset))
 
+
+
     # ─────────────────────────────────────────────────────────────
-    # STAGE 2: Main Problem Loop (extracted for clarity)
+    # STAGE 1: Initialize policy engine
+    # ─────────────────────────────────────────────────────────────
+    policy = EnergyControlPolicy(
+        min_temperature=cfg.min_temperature,
+        cooldown_medium=cfg.revert_cooldown_factor,
+        cooldown_hard_small_slope=cfg.aggressive_cooldown_factor,
+        cooldown_hard_large_slope=cfg.reset_cooldown_factor,
+        runaway_slope_eps=0.05,
+    )
+
+    # ─────────────────────────────────────────────────────────────
+    # STAGE 3: Main Problem Loop (extracted for clarity)
     # ─────────────────────────────────────────────────────────────
     _run_problem_loop(
         dataset=dataset,
         cfg=cfg,
         memory=memory,
         gate=gate,
-        engine=engine,
+        policy=policy,  # ← Use control policy
         run_id=run_id,
         num_recursions=num_recursions,
         seed=seed,
+        cached_only=cached_only,  # ← PASS IT
     )
 
     # ─────────────────────────────────────────────────────────────
-    # STAGE 3: Post-Processing
+    # STAGE 4: Post-Processing
     # ─────────────────────────────────────────────────────────────
     _finalize_run(
         memory=memory,
         run_id=run_id,
         start_time=start_time,
         cfg=cfg,
+        cached_only=cached_only,  # ← PASS IT
     )
 
     logger.info("✅ Experiment %s completed in %.2fs", run_id, time.time() - start_time)
@@ -289,26 +304,17 @@ def _run_problem_loop(
     cfg,
     memory: Memory,
     gate: VerifiabilityGate,
-    engine: PolicyEngine,
+    policy: EnergyControlPolicy,  # ← Control policy
     run_id: str,
     num_recursions: Optional[int],
     seed: int,
+    cached_only: bool = False,  # ← NEW
 ):
     """
     Execute the main evaluation loop over problems.
     
     This is the core inference + policy + logging logic.
     """
-
-    # Initialize control policy
-    policy = EnergyControlPolicy(
-        min_temperature=cfg.min_temperature,
-        cooldown_medium=cfg.revert_cooldown_factor,
-        cooldown_hard_small_slope=cfg.aggressive_cooldown_factor,
-        cooldown_hard_large_slope=cfg.reset_cooldown_factor,
-        runaway_slope_eps=0.05,
-    )
-
     for pid, example in enumerate(tqdm(dataset, desc="Problems")):
         _run_single_problem(
             pid=pid,
@@ -320,6 +326,7 @@ def _run_problem_loop(
             run_id=run_id,
             seed=seed,
             num_recursions=num_recursions,
+            cached_only=cached_only,  # ← PASS IT
         )
 
 def _run_single_problem(
@@ -329,11 +336,12 @@ def _run_single_problem(
     cfg,
     memory: Memory,
     gate: VerifiabilityGate,
-    policy: EnergyControlPolicy,  # ← NEW: Control policy instead of PolicyEngine
+    policy: EnergyControlPolicy,
     run_id: str,
     num_recursions: Optional[int],
     seed: int,
-    max_attempts: int = 100,      # ← Safety limit
+    max_attempts: int = 100,
+    cached_only: bool = False,  
 ):
     """
     Run a single problem with control system.
@@ -362,7 +370,7 @@ def _run_single_problem(
         temperature=run_obj.initial_temperature,
         run_id=run_id,
         problem_id=pid,
-        snapshot_store=memory.reasoning_state_snapshots,  # ← Inject store
+        snapshot_store=memory.reasoning_state_snapshots,
     )
     
     # ─────────────────────────────────────────────────────────────
@@ -388,7 +396,8 @@ def _run_single_problem(
             
             prompt_text = f"Solve step by step:\n\n{state.current}"
             
-            cached = memory.steps.get_reasoning_by_prompt(state.current, state.temperature)
+            # Use cached reasoning if available (for testing)
+            cached = memory.steps.get_reasoning_by_prompt(prompt_text, state.temperature)
             
             if cached:
                 reasoning = cached.reasoning_text
@@ -573,6 +582,7 @@ def _run_single_problem(
     # Note: Steps are persisted during the loop on each action
     # This ensures we capture the full trajectory including interventions
 
+
 # =============================================================================
 # HELPER: Utility functions (small, focused, testable)
 # =============================================================================
@@ -631,20 +641,31 @@ def _finalize_run(
     run_id: str,
     start_time: float,
     cfg,
+    cached_only: bool = False,  # ← NEW PARAM
 ):
     """
     Post-run tasks: aggregation, evaluation, signal discovery, cleanup.
+    
+    If cached_only=True, skip persistence-dependent steps since no new steps were written.
     """
-    # 1. Metrics aggregation
+    # ─────────────────────────────────────────────────────────────
+    # SKIP AGGREGATION IF CACHED-ONLY (no new steps persisted)
+    # ─────────────────────────────────────────────────────────────
+    if cached_only:
+        logger.info("⏭️ Skipping aggregation/evaluation for cached-only run: %s", run_id)
+        memory.runs.update(run_id, {"status": "completed", "end_time": time.time()})
+        return
+    
+    # 1. Metrics aggregation (defensive: handle missing steps gracefully)
     try:
         MetricsAggregator.dump_run_csv(memory, run_id)
     except Exception as e:
-        logger.exception("⚠️  Aggregation failed: %s", e)
+        logger.warning("⚠️ Aggregation skipped (no steps yet): %s", e)
 
     # 2. Mark run complete
     memory.runs.update(run_id, {"status": "completed", "end_time": time.time()})
 
-    # 3. Stage 2 evaluation
+    # 3. Stage 2 evaluation (defensive)
     try:
         from constrain.services.policy_evaluation_service import \
             PolicyEvaluationService
@@ -653,7 +674,7 @@ def _finalize_run(
         report = evaluator.generate_report(run_id)
         logger.info("📊 Stage 2 evaluation: %s", report)
     except Exception as e:
-        logger.exception("⚠️  Stage 2 evaluation failed: %s", e)
+        logger.warning("⚠️ Stage 2 evaluation skipped: %s", e)
 
     # 4. Signal discovery (optional)
     if cfg.run_signal_discovery:
@@ -670,17 +691,16 @@ def _finalize_run(
                 signal_service.persist_signal_report(
                     run_id=run_id,
                     results=results,
-                    experiment_id=None,  # Add if using experiments table
+                    experiment_id=None,
                 )
         except Exception as e:
-            logger.exception("⚠️  Signal discovery failed: %s", e)
+            logger.warning("⚠️ Signal discovery skipped: %s", e)
 
     # 5. Populate problem_summaries (critical for utility head training)
     try:
         populate_for_run(memory, run_id)
     except Exception as e:
-        logger.exception("⚠️  problem_summaries population failed: %s", e)
-
+        logger.warning("⚠️ problem_summaries population skipped: %s", e)
 
 
 def load_cached_problems(
@@ -691,6 +711,8 @@ def load_cached_problems(
 ) -> List[dict]:
     """
     Load only problems that have >= min_steps cached in DB.
+    
+    Uses filter() to get steps by prompt text, not get_by_prompt (which returns str).
     """
     from datasets import load_dataset
     
@@ -702,11 +724,12 @@ def load_cached_problems(
     for pid, example in enumerate(dataset):
         prompt = example["question"]
         
-        # Check if we have cached steps for this problem
-        # (You may need to add a helper method to memory.steps)
-        cached = memory.steps.get_by_prompt(prompt)
+        # ✅ FIX: Use filter to get steps by prompt, then count them
+        # get_by_prompt returns str (reasoning text), not list of steps
+        steps = memory.steps.filter(run_id=None)  # Get all steps, filter in Python
+        matching_steps = [s for s in steps if s.prompt_text == prompt]
         
-        if cached and len(cached) >= min_steps:
+        if len(matching_steps) >= min_steps:
             cached_examples.append(example)
         
         if len(cached_examples) >= num_problems:

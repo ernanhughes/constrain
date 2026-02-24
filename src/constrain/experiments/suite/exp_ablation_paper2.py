@@ -5,8 +5,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from constrain.core.io.artifact_store import ArtifactStore
-from constrain.core.io.markdown_report import MarkdownReport
+from constrain.reporting.artifact_store import ArtifactStore
+from constrain.reporting.markdown_report import MarkdownReport
 from constrain.experiments.base import Experiment, ExperimentResult
 
 
