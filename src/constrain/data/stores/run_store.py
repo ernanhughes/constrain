@@ -1,10 +1,10 @@
-# constrain/data/stores/run_store.py
 
 from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import desc
 
 from constrain.data.orm.run import RunORM
 from constrain.data.schemas.run import RunDTO
@@ -62,4 +62,19 @@ class RunStore(BaseSQLAlchemyStore[RunDTO]):
                     setattr(obj, key, value)
             s.flush()
             return self._to_dto(obj)
+        return self._run(op)
+    
+
+    def get_all(self, desc_start_time: bool = False) -> list[RunDTO]:
+        def op(s):
+            query = s.query(self.orm_model)
+
+            if desc_start_time:
+                query = query.order_by(desc(RunORM.start_time))
+            else:
+                query = query.order_by(RunORM.start_time)
+
+            rows = query.all()
+            return [self._to_dto(row) for row in rows]
+
         return self._run(op)

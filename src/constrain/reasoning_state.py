@@ -1,11 +1,16 @@
-
+from constrain.config import get_config
 
 class ReasoningState:
-    def __init__(self, prompt):
+    def __init__(self, prompt, temperature: float | None = None):
+        cfg = get_config()
+
         self.prompt = prompt
         self.history = []
         self.current = prompt
-        self.temperature = None
+        self.temperature = (
+            temperature if temperature is not None
+            else cfg.initial_temperature
+        )
 
     def accept(self, reasoning):
         self.history.append(reasoning)

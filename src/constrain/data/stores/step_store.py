@@ -365,3 +365,18 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
             .limit(1)
             .scalar()
         )
+
+    def count_by_run(self, run_id: str) -> int:
+        """
+        Return total number of steps for a given run_id.
+        """
+
+        def op(session):
+            return (
+                session.query(func.count(StepORM.id))
+                .filter(StepORM.run_id == run_id)
+                .scalar()
+            )
+
+        result = self._run(op)
+        return int(result or 0)
