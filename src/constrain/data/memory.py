@@ -18,6 +18,7 @@ from constrain.data.stores.metric_store import MetricStore
 from constrain.data.stores.policy_evaluation_store import PolicyEvaluationStore
 from constrain.data.stores.policy_event_store import PolicyEventStore
 from constrain.data.stores.problem_summary_store import ProblemSummaryStore
+from constrain.data.stores.reasoning_state_store import ReasoningStateSnapshotStore
 from constrain.data.stores.recovery_experiment_store import \
     RecoveryExperimentStore
 from constrain.data.stores.run_store import RunStore
@@ -77,6 +78,7 @@ class Memory(MemoryProtocol):
             ("policy_events", PolicyEventStore),
             ("policy_evaluations", PolicyEvaluationStore),
             ("problem_summaries", ProblemSummaryStore),
+            ("reasoning_state_snapshots", ReasoningStateSnapshotStore),
             ("recovery_experiments", RecoveryExperimentStore),
             ("runs", RunStore),
             ("signals", SignalDiscoveryStore),

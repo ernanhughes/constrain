@@ -155,6 +155,7 @@ def _import_orm_models():
     from constrain.data.orm.policy_event import PolicyEventORM
     from constrain.data.orm.problem_summary import ProblemSummaryORM
     from constrain.data.orm.recovery_experiment import RecoveryExperimentORM
+    from constrain.data.orm.reasoning_state import ReasoningStateSnapshotORM
     from constrain.data.orm.run import RunORM
     from constrain.data.orm.signal_discovery import SignalDiscoveryORM
     from constrain.data.orm.signal_report import SignalReportORM

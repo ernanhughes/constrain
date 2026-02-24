@@ -71,6 +71,20 @@ geometry_band_width_factor = 0.15
 
 
 # ---------------------------------------------------------
+# CONTROL
+# ---------------------------------------------------------
+
+[control]
+collapse_hard_n = 3
+collapse_rising_n = 2
+runaway_slope_eps = 0.05
+min_temperature = 0.1
+cooldown_medium = 0.85
+cooldown_hard_small_slope = 0.7
+cooldown_hard_large_slope = 0.5
+terminate_on_collapse = true
+
+# ---------------------------------------------------------
 # EXECUTION
 # ---------------------------------------------------------
 

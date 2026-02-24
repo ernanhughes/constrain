@@ -10,10 +10,15 @@ from constrain.config import get_config
 from constrain.data.memory import Memory
 
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class MetricsAggregator:
     # -------------------------------------------------
     # BUILD RUN DATAFRAME
     # -------------------------------------------------
+
 
     @staticmethod
     def build_run_dataframe(memory: Memory, run_id: str) -> pd.DataFrame:
@@ -22,8 +27,16 @@ class MetricsAggregator:
         # Load steps (PRIMARY source for energy/accuracy)
         # -----------------------------
         steps = memory.steps.get_by_run(run_id)
+        
+        # ⚠️ DEFENSIVE: If no steps found, return empty DataFrame with warning
         if not steps:
-            raise ValueError(f"No steps found for run_id={run_id}")
+            logger.warning(f"No steps found for run_id={run_id}. Returning empty DataFrame.")
+            return pd.DataFrame(columns=[
+                "step_id", "run_id", "problem_id", "iteration", "phase", 
+                "temperature", "policy_action", "gold_answer", "extracted_answer",
+                "total_energy", "grounding_energy", "stability_energy",
+                "accuracy", "correctness", "phase_value"
+            ])
 
         steps_df = pd.DataFrame([{
             "step_id": s.id,
@@ -106,6 +119,11 @@ class MetricsAggregator:
     def dump_run_csv(memory: Memory, run_id: str, path: Optional[str] = None):
         df = MetricsAggregator.build_run_dataframe(memory, run_id)
 
+        # ⚠️ Handle empty DataFrame case gracefully
+        if df.empty:
+            logger.warning(f"No data to aggregate for run_id={run_id}. Skipping CSV export.")
+            return None
+
         if path is None:
             path = f"{get_config().base_dir}/run_{run_id}_metrics.csv"
 
@@ -122,6 +140,14 @@ class MetricsAggregator:
 
     @staticmethod
     def print_run_summary(df: pd.DataFrame):
+        if df.empty:
+            print("\n" + "=" * 50)
+            print("RUN METRIC SUMMARY")
+            print("=" * 50)
+            print("⚠️  No data available for summary")
+            print("=" * 50 + "\n")
+            return
+
         print("\n" + "=" * 50)
         print("RUN METRIC SUMMARY")
         print("=" * 50)

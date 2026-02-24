@@ -59,6 +59,24 @@
             "args": [
             ]
         },
+        {
+            "name": "run_all_policies",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.experiments.run_all_policies",
+            "args": [
+            ]
+        },
+        {
+            "name": "replay_sweep_service",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.services.replay_sweep_service",
+            "args": [
+            ]
+        },
         
     ]
 }

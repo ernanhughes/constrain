@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
+
 if TYPE_CHECKING:
     from constrain.data.stores.calibration_store import CalibrationStore
     from constrain.data.stores.collapse_signal_store import CollapseSignalStore
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
         PolicyEvaluationStore
     from constrain.data.stores.policy_event_store import PolicyEventStore
     from constrain.data.stores.problem_summary_store import ProblemSummaryStore
+    from constrain.data.stores.reasoning_state_store import ReasoningStateSnapshotStore
     from constrain.data.stores.recovery_experiment_store import \
         RecoveryExperimentStore
     from constrain.data.stores.run_store import RunStore
@@ -35,6 +37,7 @@ class MemoryProtocol(Protocol):
     policy_events: PolicyEventStore
     problem_summaries: ProblemSummaryStore
     policy_evaluations: PolicyEvaluationStore
+    reasoning_state_snapshots: ReasoningStateSnapshotStore
     recovery_experiments: RecoveryExperimentStore
     runs: RunStore
     signals: SignalDiscoveryStore

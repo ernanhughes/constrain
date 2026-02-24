@@ -5,7 +5,7 @@ import logging
 import random
 import time
 import uuid
-from typing import Optional, Type
+from typing import List, Optional
 
 import numpy as np
 from datasets import load_dataset
@@ -19,7 +19,6 @@ from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.intervention import InterventionDTO
 from constrain.data.schemas.run import RunDTO
-from constrain.data.schemas.step import StepDTO
 from constrain.energy.embedding.hf_embedder import HFEmbedder
 from constrain.energy.embedding.sqlite_embedding_backend import \
     SQLiteEmbeddingBackend
@@ -27,12 +26,23 @@ from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
 from constrain.model import call_model
-from constrain.policy.custom_types import PolicyDecision, ThresholdProvider
+from constrain.policy.custom_types import ThresholdProvider
 from constrain.policy.engine import PolicyEngine
 from constrain.policy.registry import PolicyRegistry
 from constrain.policy.thresholds import CalibrationThresholdProvider
 from constrain.reasoning_state import ReasoningState
 from constrain.utils.dict_utils import flatten_numeric_dict
+
+from constrain.control import (
+    classify_violation,
+    compute_slope,
+    update_counters,
+    is_collapse,
+    reset_dynamics,
+    EnergyControlPolicy,
+    EnergyDynamics,
+    Action,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,8 +182,18 @@ def run_experiment(
     # ─────────────────────────────────────────────────────────────
     # STAGE 1: Load Dataset
     # ─────────────────────────────────────────────────────────────
-    dataset = load_dataset("gsm8k", "main", split="test")
-    dataset = dataset.shuffle(seed=seed).select(range(num_problems or cfg.num_problems))
+    cached_only = True
+    if cached_only:
+        dataset = load_cached_problems(
+            memory=memory,
+            seed=seed,
+            num_problems=num_problems or cfg.num_problems,
+            min_steps=num_recursions or cfg.num_recursions,
+        )
+    else:
+        dataset = load_dataset("gsm8k", "main", split="test")
+        dataset = dataset.shuffle(seed=seed).select(range(num_problems or cfg.num_problems))
+
     logger.info("📊 Loaded %d problems for evaluation", len(dataset))
 
     # ─────────────────────────────────────────────────────────────
@@ -279,6 +299,16 @@ def _run_problem_loop(
     
     This is the core inference + policy + logging logic.
     """
+
+    # Initialize control policy
+    policy = EnergyControlPolicy(
+        min_temperature=cfg.min_temperature,
+        cooldown_medium=cfg.revert_cooldown_factor,
+        cooldown_hard_small_slope=cfg.aggressive_cooldown_factor,
+        cooldown_hard_large_slope=cfg.reset_cooldown_factor,
+        runaway_slope_eps=0.05,
+    )
+
     for pid, example in enumerate(tqdm(dataset, desc="Problems")):
         _run_single_problem(
             pid=pid,
@@ -286,12 +316,11 @@ def _run_problem_loop(
             cfg=cfg,
             memory=memory,
             gate=gate,
-            engine=engine,
+            policy=policy,
             run_id=run_id,
             seed=seed,
             num_recursions=num_recursions,
         )
-
 
 def _run_single_problem(
     *,
@@ -300,74 +329,98 @@ def _run_single_problem(
     cfg,
     memory: Memory,
     gate: VerifiabilityGate,
-    engine: PolicyEngine,
+    policy: EnergyControlPolicy,  # ← NEW: Control policy instead of PolicyEngine
     run_id: str,
     num_recursions: Optional[int],
     seed: int,
+    max_attempts: int = 100,      # ← Safety limit
 ):
     """
-    Run a single problem through all iterations.
-
+    Run a single problem with control system.
+    
     Clean state flow:
     1. Generate reasoning
     2. Compute energy
-    3. Policy decision
-    4. Apply decision (accept/revert/reset)
-    5. Persist
+    3. Compute dynamics (violation, slope, counters)
+    4. Check collapse (global)
+    5. Policy decides
+    6. Apply decision (push/pop/reset)
+    7. Persist
+    
+    Key distinctions:
+    - attempt: increments every model call (every loop)
+    - iteration: increments only when we commit (ALLOW)
+    - collapse: persistent hard + rising energy (containment failure)
     """
-
+    
     prompt = example["question"]
     gold_answer = example["answer"].split("####")[-1].strip()
-
+    
     run_obj = memory.runs.get_by_id(run_id)
-    state = ReasoningState(prompt, temperature=run_obj.initial_temperature)
-
+    state = ReasoningState(
+        prompt,
+        temperature=run_obj.initial_temperature,
+        run_id=run_id,
+        problem_id=pid,
+        snapshot_store=memory.reasoning_state_snapshots,  # ← Inject store
+    )
+    
+    # ─────────────────────────────────────────────────────────────
+    # DYNAMICS TRACKING (Clarification #1: two counters)
+    # ─────────────────────────────────────────────────────────────
+    prev_energy = None
+    consecutive_hard = 0
+    consecutive_rising = 0
+    attempt = 0
+    iteration = 0
+    
+    # ─────────────────────────────────────────────────────────────
+    # MAIN CONTROL LOOP
+    # ─────────────────────────────────────────────────────────────
     depth = num_recursions if num_recursions is not None else cfg.num_recursions
-    for iteration in range(depth):
-
+    while attempt < max_attempts and iteration < depth:
+        attempt += 1  # ← Increments every model call
+        
         try:
             # =====================================================
             # 1️⃣ GENERATION
             # =====================================================
-
+            
             prompt_text = f"Solve step by step:\n\n{state.current}"
-
-            cached = memory.steps.get_reasoning_by_prompt(prompt, state.temperature)
-
+            
+            cached = memory.steps.get_reasoning_by_prompt(state.current, state.temperature)
+            
             if cached:
                 reasoning = cached.reasoning_text
             else:
                 reasoning = call_model(prompt_text, state.temperature)
-
-            # IMPORTANT: do NOT modify state yet.
-            # We evaluate this reasoning first.
-
+            
             # =====================================================
             # 2️⃣ ENERGY + METRICS
             # =====================================================
-
+            
             evidence_texts = _build_evidence(prompt, state.history)
-
+            
             energy_result, axes, _ = gate.compute_axes(
                 claim=reasoning,
                 evidence_texts=evidence_texts,
             )
-
+            
             stability_energy = _compute_stability_energy(
                 claim=reasoning,
                 history=state.history,
                 gate=gate,
             )
-
+            
             total_energy = axes.get("energy")
-
+            
             all_metrics = MetricsCalculator.compute_all(
                 reasoning=reasoning,
                 gold_answer=gold_answer,
                 energy_metrics=energy_result.to_dict(),
                 cfg=cfg,
             )
-
+            
             # Merge energy axes
             all_metrics.update({
                 "energy": axes.get("energy"),
@@ -378,97 +431,147 @@ def _run_single_problem(
                 "iteration": iteration,
                 "evidence_count": len(state.history),
             })
-
+            
             flat_metrics = flatten_numeric_dict(all_metrics)
-
+            
             # =====================================================
-            # 3️⃣ POLICY DECISION
+            # 3️⃣ DYNAMICS COMPUTATION (global, policy-independent)
             # =====================================================
-
-            decision: PolicyDecision = engine.apply(
-                axes=axes,
-                flat_metrics=flat_metrics,
-                state=state,
-                memory=memory,
-                run_id=run_id,
-                step_id=None,
+            
+            # Classify violation (GLOBAL - same for all policies)
+            violation = classify_violation(
+                total_energy,
+                cfg.tau_soft,
+                cfg.tau_medium,
+                cfg.tau_hard,
             )
-
-            # =====================================================
-            # 4️⃣ APPLY POLICY (CORRECT STATE FLOW)
-            # =====================================================
-
-            new_temp = decision.new_temperature
-
-            if decision.action == "ACCEPT":
-                state.accept(reasoning)
-
-            elif decision.action == "REVERT":
-                state.revert()
-
-            elif decision.action in ("RESET", "RESET_PROMPT"):
-                state.reset()
-
-            # Temperature always updated explicitly
-            state.temperature = new_temp
-
-            # =====================================================
-            # 5️⃣ PERSIST STEP
-            # =====================================================
-
-            step_dto = StepDTO(
-                run_id=run_id,
-                problem_id=pid,
-                iteration=iteration,
-                prompt_text=prompt,
-                reasoning_text=reasoning,
-                collapse_probability=decision.collapse_probability,
-                gold_answer=gold_answer,
-                extracted_answer=all_metrics["extracted_answer"],
-                total_energy=total_energy,
-                grounding_energy=total_energy,
-                stability_energy=stability_energy,
-                correctness=all_metrics.get("correctness"),
-                accuracy=all_metrics.get("accuracy"),
-                temperature=state.temperature,
-                policy_action=decision.action,
-                phase=MetricsCalculator.PHASE_VALUE_TO_LABEL[all_metrics["phase_value"]],
-                timestamp=time.time(),
+            
+            # Compute slope
+            slope = compute_slope(total_energy, prev_energy)
+            
+            # Update counters
+            consecutive_hard, consecutive_rising = update_counters(
+                violation,
+                slope,
+                consecutive_hard,
+                consecutive_rising,
+                prev_energy,
             )
-
-            step_dto = memory.steps.create(step_dto)
-
-            engine.log_policy_event(
-                memory=memory,
-                run_id=run_id,
-                step_id=step_dto.id,
-                decision=decision,
+            
+            # Check collapse (GLOBAL - containment failure)
+            collapse_flag = is_collapse(
+                violation,
+                consecutive_hard,
+                consecutive_rising,
+                collapse_hard_n=getattr(cfg, "collapse_hard_n", 3),
+                collapse_rising_n=getattr(cfg, "collapse_rising_n", 2),
             )
-
-            memory.metrics.bulk_from_dict(
-                step_id=step_dto.id,
-                stage="energy_v2",
-                metrics=flat_metrics,
-            )
-
-            if decision.action != "ACCEPT":
-                _log_intervention(
-                    memory=memory,
-                    run_id=run_id,
-                    problem_id=pid,
+            
+            # =====================================================
+            # 4️⃣ COLLAPSE CHECK (Clarification #4: persist then terminate)
+            # =====================================================
+            
+            if collapse_flag:
+                # Persist snapshot WITH collapse_flag=True
+                state._persist_snapshot(
+                    policy_action="TERMINATE",
+                    total_energy=total_energy,
+                    grounding_energy=axes.get("grounding_energy"),
+                    stability_energy=stability_energy,
+                    energy_slope=slope,
+                    violation_level=violation.value,
+                    consecutive_hard=consecutive_hard,
+                    consecutive_rising=consecutive_rising,
+                    collapse_flag=True,
+                    attempt=attempt,
                     iteration=iteration,
-                    action=decision.action,
-                    new_temperature=new_temp,
                 )
-
-        except Exception as e:
-            logger.exception(
-                "❌ Crash at problem %d, iteration %d: %s",
-                pid,
-                iteration,
-                e,
+                logger.warning(f"Collapse detected at problem {pid}, attempt {attempt}")
+                break  # ← Terminate immediately
+            
+            # =====================================================
+            # 5️⃣ POLICY DECISION
+            # =====================================================
+            
+            dyn = EnergyDynamics(
+                energy=total_energy,
+                prev_energy=prev_energy,
+                slope=slope,
+                violation=violation,
+                consecutive_hard=consecutive_hard,
+                consecutive_rising=consecutive_rising,
+                collapse_flag=False,
+                attempt=attempt,
+                iteration=iteration,
             )
+            
+            decision = policy.evaluate(dyn, temperature=state.temperature)
+            
+            # =====================================================
+            # 6️⃣ APPLY DECISION
+            # =====================================================
+            
+            if decision.action == Action.ALLOW:
+                # Commit reasoning
+                state.push(
+                    reasoning,
+                    temperature=decision.new_temperature,
+                    total_energy=total_energy,
+                    grounding_energy=axes.get("grounding_energy"),
+                    stability_energy=stability_energy,
+                    energy_slope=slope,
+                    violation_level=violation.value,
+                    consecutive_hard=consecutive_hard,
+                    consecutive_rising=consecutive_rising,
+                    collapse_flag=False,
+                    attempt=attempt,
+                    iteration=iteration,
+                )
+                prev_energy = total_energy  # ← Update only on successful commit
+                iteration += 1  # ← Increments only on ACCEPT
+            
+            elif decision.action == Action.ROLLBACK:
+                # Do NOT commit reasoning, do NOT pop (Clarification #5)
+                # Just retry from current stable state with cooling
+                state.temperature = decision.new_temperature
+                # prev_energy stays the same (last committed energy)
+                # iteration unchanged
+                continue  # ← Retry same iteration
+            
+            elif decision.action == Action.RESET:
+                # Reset to prompt (Clarification #2: clear counters)
+                state.reset()
+                state.temperature = decision.new_temperature
+                prev_energy, consecutive_hard, consecutive_rising = reset_dynamics()
+                iteration = 0  # ← Reset depth
+                continue
+            
+            elif decision.action == Action.TERMINATE:
+                state._persist_snapshot(
+                    policy_action="TERMINATE",
+                    total_energy=total_energy,
+                    grounding_energy=axes.get("grounding_energy"),
+                    stability_energy=stability_energy,
+                    energy_slope=slope,
+                    violation_level=violation.value,
+                    consecutive_hard=consecutive_hard,
+                    consecutive_rising=consecutive_rising,
+                    collapse_flag=False,
+                    attempt=attempt,
+                    iteration=iteration,
+                )
+                break
+        
+        except Exception as e:
+            logger.exception(f"❌ Crash at problem {pid}, attempt {attempt}: {e}")
             break
+    
+    # =====================================================
+    # 7️⃣ PERSIST FINAL STEP (if not already persisted)
+    # =====================================================
+    
+    # Note: Steps are persisted during the loop on each action
+    # This ensures we capture the full trajectory including interventions
 
 # =============================================================================
 # HELPER: Utility functions (small, focused, testable)
@@ -577,3 +680,37 @@ def _finalize_run(
         populate_for_run(memory, run_id)
     except Exception as e:
         logger.exception("⚠️  problem_summaries population failed: %s", e)
+
+
+
+def load_cached_problems(
+    memory: Memory,
+    seed: int,
+    num_problems: int,
+    min_steps: int,
+) -> List[dict]:
+    """
+    Load only problems that have >= min_steps cached in DB.
+    """
+    from datasets import load_dataset
+    
+    dataset = load_dataset("gsm8k", "main", split="test")
+    dataset = dataset.shuffle(seed=seed)
+    
+    cached_examples = []
+    
+    for pid, example in enumerate(dataset):
+        prompt = example["question"]
+        
+        # Check if we have cached steps for this problem
+        # (You may need to add a helper method to memory.steps)
+        cached = memory.steps.get_by_prompt(prompt)
+        
+        if cached and len(cached) >= min_steps:
+            cached_examples.append(example)
+        
+        if len(cached_examples) >= num_problems:
+            break
+    
+    logger.info(f"Found {len(cached_examples)}/{num_problems} problems with cached steps")
+    return cached_examples

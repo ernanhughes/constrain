@@ -9,7 +9,7 @@ This replaces disruptive hard resets with stabilizing control.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -45,6 +45,8 @@ class SoftInterventionEngine:
     
     Control theory principle: gentle damping before hard reset.
     """
+    policy_id: int = 9
+
 
     # Thresholds (tune via sweep)
     NUDGE_THRESHOLD = 0.55
@@ -179,6 +181,8 @@ class RandomizedSoftInterventionPolicy:
     This creates clean causal data for treatment effect estimation.
     """
 
+    policy_id: int = 10
+
     def __init__(
         self,
         engine: SoftInterventionEngine,
@@ -259,3 +263,4 @@ class RandomizedSoftInterventionPolicy:
     def is_randomized_decision(self, metadata: Dict) -> bool:
         """Check if this decision was randomized (for filtering later)."""
         return metadata.get("decision_type", "").startswith("randomized")
+    

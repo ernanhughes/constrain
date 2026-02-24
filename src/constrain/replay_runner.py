@@ -1,4 +1,4 @@
-from constrain.analysis.policy_replay import PolicyReplayService
+from constrain.services.policy_replay_service import PolicyReplayService
 from constrain.data.memory import Memory
 
 

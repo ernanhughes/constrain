@@ -32,7 +32,19 @@ class PolicyReplayService:
         )
 
         if not steps:
-            raise ValueError(f"No steps found for run_id={run_id}")
+            return {
+                "run_id": run_id,
+                "policy_id": policy_id,
+                "tau_soft": tau_soft,
+                "tau_medium": tau_medium,
+                "tau_hard": tau_hard,
+                "total_steps": 0,
+                "accept_rate": 0.0,
+                "intervention_rate": 0.0,
+                "action_counts": {},
+                "energy_mean": 0.0,
+                "energy_std": 0.0,
+            }
 
         # -------------------------------------------------
         # Override config thresholds temporarily

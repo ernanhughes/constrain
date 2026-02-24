@@ -376,3 +376,26 @@ class StepStore(BaseSQLAlchemyStore[StepDTO]):
 
         result = self._run(op)
         return int(result or 0)
+
+
+    def get_by_prompt(
+        self, 
+        prompt_text: str, 
+        temperature: Optional[float] = None
+    ) -> Optional[str]:
+        """
+        Get a cached step by prompt text (for caching/replay).
+        
+        Returns StepDTO or None if not found.
+        Temperature parameter is accepted for API compatibility but not used in lookup.
+        """
+        def op(s):
+            row = (
+                s.query(StepORM)
+                .filter(StepORM.prompt_text == prompt_text)
+                .order_by(func.random())  # Random selection if multiple matches
+                .first()
+            )
+            return row.reasoning_text if row else None
+        
+        return self._run(op)

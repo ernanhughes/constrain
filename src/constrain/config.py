@@ -154,6 +154,16 @@ class ConstrainConfig:
     save_signal_plots: bool
     signal_prediction_horizon: int
 
+
+    collapse_hard_n: int
+    collapse_rising_n: int
+    runaway_slope_eps: float
+    min_temperature: float
+    cooldown_medium: float
+    cooldown_hard_small_slope: float
+    cooldown_hard_large_slope: float
+    terminate_on_collapse: bool
+
     fast_mode: bool = True
     policy_mode: str = "recursive"
     provider: str = "ollama"
@@ -295,6 +305,43 @@ class ConstrainConfig:
         ))
 
         # ---------------------------------------------------------
+        # CONTROL
+        # ---------------------------------------------------------
+
+        collapse_hard_n = int(get_value(
+            "collapse_hard_n", toml_section="control", env_var=None,
+            default=3
+        ))
+        collapse_rising_n = int(get_value(
+            "collapse_rising_n", toml_section="control", env_var=None,
+            default=2
+        ))
+        runaway_slope_eps = float(get_value(
+            "runaway_slope_eps", toml_section="control", env_var=None,
+            default=0.05
+        ))
+        min_temperature = float(get_value(
+            "min_temperature", toml_section="control", env_var=None,
+            default=0.1
+        ))
+        cooldown_medium = float(get_value(
+            "cooldown_medium", toml_section="control", env_var=None,
+            default=0.7
+        ))
+        cooldown_hard_small_slope = float(get_value(
+            "cooldown_hard_small_slope", toml_section="control", env_var=None,
+            default=0.3
+        ))
+        cooldown_hard_large_slope = float(get_value(
+            "cooldown_hard_large_slope", toml_section="control", env_var=None,
+            default=0.5
+        ))
+        terminate_on_collapse = bool(get_value(
+            "terminate_on_collapse", toml_section="control", env_var=None,
+            default=False
+        ))
+
+        # ---------------------------------------------------------
         # POLICY CONTROLS
         # ---------------------------------------------------------
 
@@ -399,10 +446,17 @@ class ConstrainConfig:
             num_recursions=num_recursions,
             initial_temperature=initial_temperature,
             policy_mode=policy_mode,
+            collapse_hard_n=collapse_hard_n,
+            collapse_rising_n=collapse_rising_n,
+            runaway_slope_eps=runaway_slope_eps,
+            min_temperature=min_temperature,
+            cooldown_medium=cooldown_medium,
+            cooldown_hard_small_slope=cooldown_hard_small_slope,
+            cooldown_hard_large_slope=cooldown_hard_large_slope,
+            terminate_on_collapse=terminate_on_collapse,
             tau_soft=tau_soft,
             tau_medium=tau_medium,
             tau_hard=tau_hard,
-            min_temperature=min_temperature,
             revert_cooldown_factor=revert_cooldown_factor,
             aggressive_cooldown_factor=aggressive_cooldown_factor,
             reset_cooldown_factor=reset_cooldown_factor,
@@ -454,10 +508,17 @@ class ConstrainConfig:
             "num_recursions": self.num_recursions,
             "initial_temperature": self.initial_temperature,
             "policy_mode": self.policy_mode,
+            "collapse_hard_n": self.collapse_hard_n,
+            "collapse_rising_n": self.collapse_rising_n,
+            "runaway_slope_eps": self.runaway_slope_eps,
+            "min_temperature": self.min_temperature,
+            "cooldown_medium": self.cooldown_medium,
+            "cooldown_hard_small_slope": self.cooldown_hard_small_slope,
+            "cooldown_hard_large_slope": self.cooldown_hard_large_slope,
+            "terminate_on_collapse": self.terminate_on_collapse,
             "tau_soft": self.tau_soft,
             "tau_medium": self.tau_medium,
             "tau_hard": self.tau_hard,
-            "min_temperature": self.min_temperature,
             "revert_cooldown_factor": self.revert_cooldown_factor,
             "aggressive_cooldown_factor": self.aggressive_cooldown_factor,
             "reset_cooldown_factor": self.reset_cooldown_factor,

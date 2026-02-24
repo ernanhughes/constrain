@@ -14,11 +14,10 @@ from constrain.policy.policies import (AggressiveRevertPolicy,
                                        LearnedPolicyWrapper, MediumResetPolicy,
                                        RandomPolicy, RevertCoolPolicy,
                                        SimpleRevertPolicy,
-                                       SoftInterventionPolicyWrapper)
+                                       SoftInterventionPolicyWrapper, RandomizedSoftInterventionPolicyWrapper)
 from constrain.policy.policy_config import PolicyConfig
 from constrain.policy.policy_params import PolicyParams
-from constrain.policy.soft_intervention_engine import (
-    RandomizedSoftInterventionPolicy, SoftInterventionEngine)
+from constrain.policy.soft_intervention_engine import SoftInterventionEngine
 
 
 @dataclass
@@ -56,11 +55,7 @@ class PolicyRegistry:
         # -----------------------------
 
         learned_model = None
-        if policy_id == 99:
-
-            if not hasattr(cfg, "learned_model_path"):
-                raise ValueError("learned_model_path missing from config.")
-
+        if policy_id == 8:
             learned_model = LearnedPolicy(
                 model_path=cfg.learned_model_path,
                 bias=cfg.learned_policy_threshold,
@@ -111,7 +106,7 @@ class PolicyRegistry:
                 revert_probability=self.config.random_revert_probability,
             )
 
-        if policy_id == 8:
+        if policy_id == 7:
             return GeometryBandPolicy(
                 params=params,
                 pr_threshold=self.config.geometry_pr_threshold,
@@ -119,17 +114,14 @@ class PolicyRegistry:
                 band_width_factor=self.config.geometry_band_width_factor,
             )
 
-        if policy_id == 99:
-            if self.learned_model is None:
-                raise ValueError("Learned policy selected but model not loaded.")
-
+        if policy_id == 8:
             return LearnedPolicyWrapper(
                 params=params,
                 learned_model=self.learned_model,
                 shadow=self.learned_shadow,
             )
 
-        if policy_id == 100:  # Soft Intervention (deterministic)
+        if policy_id == 9:  # Soft Intervention (deterministic)
             engine = SoftInterventionEngine()
             return SoftInterventionPolicyWrapper(
                 params=params,
@@ -137,13 +129,14 @@ class PolicyRegistry:
                 shadow=False,
             )
 
-        if policy_id == 101:  # Randomized Soft Intervention (for causal data)
+        if policy_id == 10:  # Randomized Soft Intervention (for causal data)
             engine = SoftInterventionEngine()
-            return SoftInterventionPolicyWrapper(
+            return RandomizedSoftInterventionPolicyWrapper(
                 params=params,
                 engine=engine,
                 shadow=False,
-                randomized=True,
-                randomization_rate=0.5,
             )
+
         raise ValueError(f"Unknown policy_id: {policy_id}")
+
+
