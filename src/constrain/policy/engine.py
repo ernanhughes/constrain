@@ -1,14 +1,17 @@
 # constrain/policy/engine.py
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.policy.exploration_wrapper import ExplorationWrapper
 from constrain.reasoning_state import ReasoningState
-from .custom_types import PolicyDecision, ThresholdProvider, Policy
-from constrain.config import get_config
+
+from .custom_types import Policy, PolicyDecision, ThresholdProvider
+
 
 @dataclass
 class PolicyEngine:

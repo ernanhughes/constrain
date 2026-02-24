@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, Text, Index
+from sqlalchemy import Column, Float, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.policy_evaluation import PolicyEvaluationORM
 from constrain.data.schemas.policy_evaluation import PolicyEvaluationDTO

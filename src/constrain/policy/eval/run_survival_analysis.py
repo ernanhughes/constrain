@@ -19,20 +19,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import yaml
 
-import matplotlib
-
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from constrain.config import get_config
 from constrain.policy.eval.conversation_env import ConversationEnv
-from constrain.policy.eval.intervention_rate_matcher import InterventionRateMatcher
+from constrain.policy.eval.intervention_rate_matcher import \
+    InterventionRateMatcher
 from constrain.policy.eval.survival_prompts import get_stress_prompt
 from constrain.policy.learned_policy import LearnedPolicy
-from constrain.config import get_config
 
 
 @dataclass
@@ -59,10 +59,9 @@ class SurvivalAnalyzer:
         self._matcher: InterventionRateMatcher | None = None
 
         # Learned policy for *action selection* (ACCEPT/REVERT) in policy-controlled arms.
-        self._policy = None
         self._policy = LearnedPolicy(
             model_path=model_base_path,
-            threshold=get_config().learned_policy_threshold,
+            bias=get_config().learned_policy_threshold,
         )
 
     # ------------------------------------------------------------
@@ -118,7 +117,8 @@ class SurvivalAnalyzer:
             "stability_energy": float(feats.get("stability_energy", 0.0)),
         }
 
-        action, _prob = self._policy.decide(feature_dict)
+        action, preds, value = self._policy.decide(feature_dict)
+        print(f"[Policy decision] turn={turn} action={action} value={value:.4f} preds={preds}")
         return action
 
     # ------------------------------------------------------------
@@ -175,7 +175,19 @@ class SurvivalAnalyzer:
             state = env.commit_turn(state, response)
 
             # 5) Update histories
-            V_hist.append(float(feats["collapse_prob"]))
+            feature_dict = {}
+            for f in self._policy.feature_names:
+                if f == "iteration":
+                    feature_dict[f] = float(turn)
+                elif f in feats:
+                    feature_dict[f] = float(feats.get(f, 0.0))
+                else:
+                    feature_dict[f] = 0.0  # explicit default
+
+            preds = self._policy.predict(feature_dict)
+
+            V_hist.append(preds["p_accept"])
+            
             acc_hist.append(float(feats.get("accuracy", float("nan"))))
             energy_hist.append(float(feats.get("total_energy", 0.0)))
 

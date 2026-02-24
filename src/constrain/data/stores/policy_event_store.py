@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.policy_event import PolicyEventORM
 from constrain.data.schemas.policy_event import PolicyEventDTO

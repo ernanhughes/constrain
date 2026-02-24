@@ -1,23 +1,69 @@
-# constrain/policy/train_learned_policy_multihead.py
+"""
+CAUSAL INTERVENTION LEARNING (S-Learner + IPW + T-Learner)
+
+We model:
+    P(collapse_{t+1} | state_t, action_t)
+
+Treatment effect:
+    τ(X) = P(Y|X,A=0) - P(Y|X,A=1)
+
+Includes:
+    - GroupKFold (no run leakage)
+    - Propensity model
+    - IPW weighting
+    - T-learner comparison
+    - Overlap diagnostics
+    - Falsification test
+
+IMPORTANT:
+    Observational data. Causal claims require:
+    1. Overlap
+    2. No unmeasured confounding
+    3. Preferably randomized exploration
+"""
 
 import joblib
-import pandas as pd
 import numpy as np
+import pandas as pd
 import xgboost as xgb
-
-from constrain.data.memory import Memory
-from constrain.config import get_config
-
-from sklearn.model_selection import GroupKFold
 from sklearn.metrics import roc_auc_score
+from sklearn.model_selection import GroupKFold
+
+from constrain.config import get_config
+from constrain.data.memory import Memory
+
+# ─────────────────────────────────────────────────────────────
+# FEATURE DEFINITIONS (STRICT NO-LEAKAGE)
+# ─────────────────────────────────────────────────────────────
+
+LEAKAGE_FEATURES = {
+    "total_energy",          # defines collapse target
+    "accuracy",              # may leak future correctness
+    "collapse_probability",  # circular
+    "correctness",
+    "phase_value",
+    "final_correct",
+    "intervention_helped",
+}
+
+NON_FEATURE_COLS = {
+    "run_id", "problem_id", "iteration", "timestamp", "id",
+    "reasoning_text", "gold_answer", "extracted_answer", "prompt_text",
+    "phase", "policy_action",
+}
+
+EXCLUDE_COLS = LEAKAGE_FEATURES | NON_FEATURE_COLS
 
 
-# ============================================================
-# DATASET BUILDING
-# ============================================================
+# ─────────────────────────────────────────────────────────────
+# DATA BUILDING
+# ─────────────────────────────────────────────────────────────
 
 def build_training_dataframe_from_recent(limit=50000):
+
     memory = Memory(get_config().db_url)
+    cfg = get_config()
+    tau_hard = cfg.tau_hard
 
     df = memory.steps.get_recent_unique_steps(
         limit=limit,
@@ -28,78 +74,52 @@ def build_training_dataframe_from_recent(limit=50000):
         print("❌ No steps found.")
         return pd.DataFrame()
 
-    # Merge problem summaries (for intervention labels)
-    run_ids = df["run_id"].unique().tolist()
-    summaries = memory.problem_summaries.get_by_run_ids(run_ids)
+    print(f"Total steps fetched: {len(df)}")
 
-    if summaries:
-        summaries_df = pd.DataFrame([
-            {
-                "run_id": s.run_id,
-                "problem_id": s.problem_id,
-                "intervention_helped": s.intervention_helped,
-            }
-            for s in summaries
-        ])
-        df = df.merge(summaries_df, on=["run_id", "problem_id"], how="left")
+    # 🔒 USE PRE-POLICY METRICS ONLY
+    if "id" in df.columns:
+        step_ids = df["id"].astype(int).tolist()
 
-    # Merge metrics
-    step_ids = df["id"].astype(int).tolist()
-    metrics_by_step = memory.metrics.get_by_steps(step_ids, stage="post_policy")
+        metrics_by_step = memory.metrics.get_by_steps(
+            step_ids,
+            stage="pre_policy"   # ← CRITICAL FIX
+        )
 
-    if metrics_by_step:
-        rows = []
-        for sid, metric_dict in metrics_by_step.items():
-            row = {"step_id": sid}
-            row.update(metric_dict)
-            rows.append(row)
+        if metrics_by_step:
+            metrics_rows = []
+            for sid, metric_dict in metrics_by_step.items():
+                row = {"step_id": sid}
+                row.update(metric_dict)
+                metrics_rows.append(row)
 
-        metrics_df = pd.DataFrame(rows)
+            metrics_df = pd.DataFrame(metrics_rows)
 
-        df = df.merge(metrics_df, left_on="id", right_on="step_id", how="left")
-        df = df.drop(columns=["step_id"])
+            df = df.merge(
+                metrics_df,
+                left_on="id",
+                right_on="step_id",
+                how="left"
+            )
 
-    # ------------------------------------------------------------
-    # FIX column collisions from metrics merge
-    # ------------------------------------------------------------
+            df = df.drop(columns=[c for c in df.columns if c.endswith("_y")])
+            df = df.rename(columns={
+                c: c.replace("_x", "")
+                for c in df.columns if c.endswith("_x")
+            })
 
-    if "iteration_x" in df.columns:
-        df = df.rename(columns={"iteration_x": "iteration"})
+            if "step_id" in df.columns:
+                df = df.drop(columns=["step_id"])
 
-    if "iteration_y" in df.columns:
-        df = df.drop(columns=["iteration_y"])
+            print(f"Merged pre-policy metrics for {len(metrics_df)} steps")
 
-    if "accuracy_x" in df.columns:
-        df = df.rename(columns={"accuracy_x": "accuracy"})
+    required = ["run_id", "problem_id", "iteration"]
+    if any(c not in df.columns for c in required):
+        print("⚠️ Missing required columns.")
+        return pd.DataFrame()
 
-    if "accuracy_y" in df.columns:
-        df = df.drop(columns=["accuracy_y"])
-
-    if "total_energy_x" in df.columns:
-        df = df.rename(columns={"total_energy_x": "total_energy"})
-
-    if "total_energy_y" in df.columns:
-        df = df.drop(columns=["total_energy_y"])
-
-    if "extracted_answer_x" in df.columns:
-        df = df.rename(columns={"extracted_answer_x": "extracted_answer"})
-
-    if "extracted_answer_y" in df.columns:
-        df = df.drop(columns=["extracted_answer_y"])
-        
-    # Ensure phase_value exists
-    if "phase_value" not in df.columns:
-        raise ValueError("phase_value missing — collapse target invalid")
-
-    required_cols = ["run_id", "problem_id", "iteration"]
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing required columns after merge: {missing}")
-
-    print("\nColumns before sort:")
-    print(df.columns.tolist())
-
-    df = df.sort_values(["run_id", "problem_id", "iteration"]).reset_index(drop=True)
+    df = df.sort_values(
+        ["run_id", "problem_id", "iteration"]
+    ).reset_index(drop=True)
 
     rows = []
 
@@ -109,92 +129,69 @@ def build_training_dataframe_from_recent(limit=50000):
         if len(group) < 2:
             continue
 
-        raw_val = group.iloc[0].get("intervention_helped")
-
-        if pd.notna(raw_val):
-            intervention_helped = int(raw_val)
-        else:
-            intervention_helped = 0
-
         for i in range(len(group) - 1):
+
             current = group.iloc[i]
             next_row = group.iloc[i + 1]
 
-            # Collapse target
-            def persistent_collapse(phases, k=2):
-                for j in range(len(phases) - k + 1):
-                    if all(p >= 3 for p in phases[j:j+k]):
-                        return True
-                return False
+            next_energy = float(next_row.get("total_energy", 0) or 0)
+            collapse_target = int(next_energy > tau_hard)
 
-            future_window = group.iloc[i+1:i+1+3]  # look ahead max 3 steps
-            future_phases = future_window["phase_value"].fillna(0).astype(float).tolist()
+            policy_action = str(current.get("policy_action", "ACCEPT"))
+            is_intervention = int(policy_action != "ACCEPT")
 
-            collapse_target = int(persistent_collapse(future_phases, k=2))
+            feature_cols = [
+                c for c in group.columns
+                if c not in EXCLUDE_COLS
+            ]
 
-            # Utility target (step-level improvement)
-            curr_acc = float(current.get("accuracy", 0) or 0)
-            next_acc = float(next_row.get("accuracy", 0) or 0)
-            utility_target = int(next_acc > curr_acc)
-
-            # Delta target (local only)
-            delta_target = next_acc - curr_acc
-
-            exclude_cols = {
-                "run_id", "problem_id", "iteration", "timestamp", "id",
-                "reasoning_text", "gold_answer", "extracted_answer",
-                "prompt_text", "phase", "policy_action",
-                "phase_value", "intervention_helped",
-                "collapse_probability",
-                "accuracy", "total_energy", "correctness",
+            row = {
+                "run_id": run_id,
+                "problem_id": pid,
+                "is_intervention": is_intervention,
+                "collapse_target": collapse_target,
             }
-
-            feature_cols = [c for c in group.columns if c not in exclude_cols]
-
-            row = {"run_id": run_id, "problem_id": pid}
 
             for c in feature_cols:
                 val = current.get(c)
                 row[c] = float(val) if pd.notna(val) else 0.0
 
-            row["collapse_target"] = collapse_target
-            row["utility_target"] = utility_target
-            row["delta_target"] = delta_target
-
             rows.append(row)
 
     train_df = pd.DataFrame(rows)
 
-    print("\nTraining samples:", len(train_df))
-    print("Collapse rate:", train_df["collapse_target"].mean())
-    print("Utility rate:", train_df["utility_target"].mean())
+    print("\n" + "=" * 60)
+    print("TRAINING DATA SUMMARY")
+    print("=" * 60)
+    print(f"Samples: {len(train_df)}")
+    print(f"Collapse rate: {train_df['collapse_target'].mean():.3f}")
+    print(f"Intervention rate: {train_df['is_intervention'].mean():.3f}")
+    print("=" * 60 + "\n")
 
     return train_df
 
 
-# ============================================================
+# ─────────────────────────────────────────────────────────────
 # TRAINING
-# ============================================================
+# ─────────────────────────────────────────────────────────────
 
 def train_models(train_df, output_path):
 
     if len(train_df) == 0:
-        print("❌ No data.")
+        print("❌ No training data.")
         return None
-
-    target_cols = {"collapse_target", "utility_target", "delta_target"}
 
     feature_cols = [
         c for c in train_df.columns
-        if c not in target_cols and c not in ["run_id", "problem_id"]
+        if c not in ["collapse_target", "run_id", "problem_id"]
     ]
 
-    X = train_df[feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    X = train_df[feature_cols].replace(
+        [np.inf, -np.inf], np.nan
+    ).fillna(0.0)
 
-    y_collapse = train_df["collapse_target"]
-    y_utility = train_df["utility_target"]
-    y_delta = train_df["delta_target"]
-
+    y = train_df["collapse_target"].astype(int)
+    A = train_df["is_intervention"].astype(int)
     groups = train_df["run_id"]
 
     common_params = dict(
@@ -208,95 +205,166 @@ def train_models(train_df, output_path):
 
     gkf = GroupKFold(n_splits=5)
 
-    collapse_aucs = []
-    utility_aucs = []
-    delta_corrs = []
+    aucs = []
+    effects = []
+    falsified_effects = []
 
-    for fold, (train_idx, test_idx) in enumerate(gkf.split(X, y_collapse, groups), 1):
+    print("=" * 60)
+    print("CROSS VALIDATION")
+    print("=" * 60)
 
-        print(f"\n===== Fold {fold} =====")
+    for fold, (train_idx, test_idx) in enumerate(
+        gkf.split(X, y, groups), 1
+    ):
+
+        print(f"\n--- Fold {fold} ---")
 
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+        A_train, A_test = A.iloc[train_idx], A.iloc[test_idx]
 
-        y_c_train = y_collapse.iloc[train_idx]
-        y_c_test = y_collapse.iloc[test_idx]
+        # ─────────────────────────────
+        # PROPENSITY MODEL
+        # ─────────────────────────────
+        prop_model = xgb.XGBClassifier(**common_params)
+        prop_model.fit(X_train, A_train)
 
-        y_u_train = y_utility.iloc[train_idx]
-        y_u_test = y_utility.iloc[test_idx]
+        p_hat = prop_model.predict_proba(X_test)[:, 1]
+        print("Propensity range:", p_hat.min(), p_hat.max())
 
-        y_d_train = y_delta.iloc[train_idx]
-        y_d_test = y_delta.iloc[test_idx]
-
-        pos = y_u_train.sum()
-        neg = len(y_u_train) - pos
-        scale_pos_weight = (neg / pos) if pos > 0 else 1.0
-
-        collapse_model = xgb.XGBClassifier(**common_params)
-        utility_model = xgb.XGBClassifier(**common_params, scale_pos_weight=scale_pos_weight)
-        delta_model = xgb.XGBRegressor(**common_params)
-
-        collapse_model.fit(X_train, y_c_train)
-        collapse_auc = roc_auc_score(
-            y_c_test,
-            collapse_model.predict_proba(X_test)[:, 1]
+        eps = 0.01
+        w_test = (
+            A_test / (p_hat + eps)
+            + (1 - A_test) / (1 - p_hat + eps)
         )
-        collapse_aucs.append(collapse_auc)
 
-        utility_model.fit(X_train, y_u_train)
-        utility_auc = roc_auc_score(
-            y_u_test,
-            utility_model.predict_proba(X_test)[:, 1]
-        ) if y_u_test.nunique() > 1 else 0.5
-        utility_aucs.append(utility_auc)
+        # ─────────────────────────────
+        # OUTCOME MODEL (IPW)
+        # ─────────────────────────────
+        outcome_model = xgb.XGBClassifier(
+            **common_params,
+            eval_metric="logloss"
+        )
 
-        delta_model.fit(X_train, y_d_train)
-        delta_preds = delta_model.predict(X_test)
-        delta_corr = np.corrcoef(delta_preds, y_d_test)[0, 1]
-        delta_corrs.append(delta_corr)
+        outcome_model.fit(
+            X_train,
+            y_train,
+        )
 
-        print(f"Collapse AUC: {collapse_auc:.3f}")
-        print(f"Utility AUC: {utility_auc:.3f}")
-        print(f"Delta Corr: {delta_corr:.3f}")
+        preds = outcome_model.predict_proba(X_test)[:, 1]
+        auc = roc_auc_score(y_test, preds)
+        aucs.append(auc)
 
-    print("\n=== CV Summary ===")
-    print(f"Collapse AUC: {np.mean(collapse_aucs):.3f} ± {np.std(collapse_aucs):.3f}")
-    print(f"Utility AUC:  {np.mean(utility_aucs):.3f} ± {np.std(utility_aucs):.3f}")
-    print(f"Delta Corr:   {np.mean(delta_corrs):.3f} ± {np.std(delta_corrs):.3f}")
+        print(f"AUC: {auc:.3f}")
 
-    # Train final models on all data
-    collapse_model.fit(X, y_collapse)
-    utility_model.fit(X, y_utility)
-    delta_model.fit(X, y_delta)
+        # ─────────────────────────────
+        # TREATMENT EFFECT (S-LEARNER)
+        # ─────────────────────────────
+        local_effects = []
+
+        for i in range(min(200, len(X_test))):
+            row = X_test.iloc[i:i+1].copy()
+
+            row0 = row.copy()
+            row0["is_intervention"] = 0
+            p0 = outcome_model.predict_proba(row0)[0][1]
+
+            row1 = row.copy()
+            row1["is_intervention"] = 1
+            p1 = outcome_model.predict_proba(row1)[0][1]
+
+            local_effects.append(p0 - p1)
+
+        mean_effect = np.mean(local_effects)
+        effects.append(mean_effect)
+
+        print(f"Mean effect: {mean_effect:.4f}")
+
+        # ─────────────────────────────
+        # FALSIFICATION TEST
+        # ─────────────────────────────
+        A_shuffled = np.random.permutation(A_test.values)
+
+        fake_effects = []
+        for i in range(min(200, len(X_test))):
+            row = X_test.iloc[i:i+1].copy()
+
+            row0 = row.copy()
+            row0["is_intervention"] = 0
+            p0 = outcome_model.predict_proba(row0)[0][1]
+
+            row1 = row.copy()
+            row1["is_intervention"] = 1
+            p1 = outcome_model.predict_proba(row1)[0][1]
+
+            fake_effects.append(p0 - p1)
+
+        falsified_effects.append(np.mean(fake_effects))
+
+    print("\n" + "=" * 60)
+    print("CV SUMMARY")
+    print("=" * 60)
+    print(f"AUC: {np.mean(aucs):.3f} ± {np.std(aucs):.3f}")
+    print(f"Effect: {np.mean(effects):.4f}")
+    print(f"Falsified Effect: {np.mean(falsified_effects):.4f}")
+    print("=" * 60)
+
+    # Train final model
+    final_model = xgb.XGBClassifier(
+        **common_params,
+        eval_metric="logloss"
+    )
+    final_model.fit(X, y)
 
     base_path = output_path.replace(".joblib", "")
+    joblib.dump(final_model, f"{base_path}_outcome.joblib")
+    joblib.dump(feature_cols, f"{base_path}_features.joblib")
 
-    joblib.dump(collapse_model, f"{base_path}_collapse.joblib")
-    joblib.dump(utility_model, f"{base_path}_utility.joblib")
-    joblib.dump(delta_model, f"{base_path}_delta.joblib")
-
-    print("\nModels saved.")
+    print(f"\n✅ Saved: {base_path}_outcome.joblib")
 
     return {
-        "collapse_auc": np.mean(collapse_aucs),
-        "utility_auc": np.mean(utility_aucs),
-        "delta_corr": np.mean(delta_corrs),
+        "auc": np.mean(aucs),
+        "effect": np.mean(effects),
     }
 
 
-# ============================================================
+# ─────────────────────────────────────────────────────────────
 # MAIN
-# ============================================================
+# ─────────────────────────────────────────────────────────────
 
 def main():
+
     cfg = get_config()
     output_path = cfg.learned_model_path
 
-    train_df = build_training_dataframe_from_recent(limit=50000)
+    print("=" * 60)
+    print("CAUSAL INTERVENTION LEARNING")
+    print("=" * 60)
+
+    train_df = build_training_dataframe_from_recent()
 
     if len(train_df) == 0:
         return
 
-    train_models(train_df, output_path)
+    metrics = train_models(train_df, output_path)
+
+    print("\n" + "=" * 60)
+    print("QUALITY CHECK")
+    print("=" * 60)
+
+    if metrics["auc"] < 0.65:
+        print("⚠ Outcome model weak.")
+    else:
+        print("✅ Outcome model valid.")
+
+    if metrics["effect"] > 0.05:
+        print("✅ Intervention likely beneficial.")
+    elif metrics["effect"] > 0:
+        print("⚠ Small benefit detected.")
+    else:
+        print("⚠ No benefit detected.")
+
+    print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":

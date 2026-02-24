@@ -4,7 +4,6 @@ from sqlalchemy import Column, Float, Integer, Text
 from sqlalchemy.orm import relationship
 
 from constrain.data.base import Base
-
 from constrain.data.orm.collapse_signal import CollapseSignalORM
 
 

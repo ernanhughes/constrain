@@ -13,14 +13,16 @@ from tqdm.auto import tqdm
 
 from constrain.analysis.aggregation.metrics_aggregator import MetricsAggregator
 from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
-from constrain.analysis.aggregation.populate_problem_summaries import populate_for_run
+from constrain.analysis.aggregation.populate_problem_summaries import \
+    populate_for_run
 from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.intervention import InterventionDTO
 from constrain.data.schemas.run import RunDTO
 from constrain.data.schemas.step import StepDTO
 from constrain.energy.embedding.hf_embedder import HFEmbedder
-from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
+from constrain.energy.embedding.sqlite_embedding_backend import \
+    SQLiteEmbeddingBackend
 from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
 from constrain.energy.utils.text_utils import split_into_sentences
@@ -541,7 +543,8 @@ def _finalize_run(
 
     # 3. Stage 2 evaluation
     try:
-        from constrain.services.policy_evaluation_service import PolicyEvaluationService
+        from constrain.services.policy_evaluation_service import \
+            PolicyEvaluationService
         evaluator = PolicyEvaluationService(memory)
         evaluations = evaluator.evaluate_run(run_id)
         report = evaluator.generate_report(run_id)
@@ -552,7 +555,8 @@ def _finalize_run(
     # 4. Signal discovery (optional)
     if cfg.run_signal_discovery:
         try:
-            from constrain.services.collapse_prediction_service import CollapsePredictionService
+            from constrain.services.collapse_prediction_service import \
+                CollapsePredictionService
             signal_service = CollapsePredictionService(memory)
             results = signal_service.discover_signals(
                 run_id=run_id,

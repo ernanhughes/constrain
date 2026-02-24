@@ -9,8 +9,9 @@ When risk > threshold:
 This creates clean causal data for future model training.
 """
 
-import numpy as np
 import joblib
+import numpy as np
+
 from constrain.config import get_config
 
 

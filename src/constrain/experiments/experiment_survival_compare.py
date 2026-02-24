@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
+import logging
 from dataclasses import asdict
 from typing import Dict, Tuple
 
+import numpy as np
+import pandas as pd
+from transformers import logging as hf_logging
+
+from constrain.config import get_config
 from constrain.policy.eval.run_survival_analysis import SurvivalAnalyzer
 from constrain.policy.eval.survival_prompts import get_stress_prompt
-from constrain.config import get_config
+
+hf_logging.set_verbosity_error()
+logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
 # ============================================================
 # Bootstrap helpers (similar to your style)
@@ -77,7 +84,7 @@ def rmst(times: np.ndarray, censored: np.ndarray, T: int) -> float:
 
 def median_survival(times: np.ndarray, censored: np.ndarray, T: int) -> float:
     """
-    Median survival time from KM curve: first t where S(t) <= 0.5.
+    Median survival time from KM curve: first t where S(t) <= 0.5. Yeah but
     Returns NaN if never crosses within [0, T].
     """
     if len(times) == 0:
@@ -132,7 +139,23 @@ def run_survival_controller_trials(
                 controller=controller,
                 max_turns=max_turns,
             )
+            d = asdict(trial)
+            rows.append({
+                "controller": controller,
+                "seed": seed,
+                "trial_index": i,
+                "prompt_name": d.get("prompt_name"),
+                "error": "",
+                "failure_turn": d.get("failure_turn"),
+                "censored": d.get("censored"),
+                "max_turns": d.get("max_turns"),
+                "interventions": d.get("interventions"),
+                "mean_V": d.get("mean_V"),
+                "max_V": d.get("max_V"),
+                "cumulative_instability": d.get("cumulative_instability"),
+            })
         except Exception as e:
+            print(f"Error in trial seed={seed} index={i} controller={controller}: {e}")
             # Robust: record failure to run as NaN row
             rows.append({
                 "controller": controller,
@@ -141,6 +164,7 @@ def run_survival_controller_trials(
                 "prompt_name": prompt.get("name", "unknown"),
                 "error": str(e),
                 "failure_turn": np.nan,
+                 "max_turns": np.nan,
                 "censored": np.nan,
                 "interventions": np.nan,
                 "mean_V": np.nan,
@@ -148,22 +172,6 @@ def run_survival_controller_trials(
                 "cumulative_instability": np.nan,
             })
             continue
-
-        d = asdict(trial)
-        rows.append({
-            "controller": controller,
-            "seed": seed,
-            "trial_index": i,
-            "prompt_name": d.get("prompt_name"),
-            "error": "",
-            "failure_turn": d.get("failure_turn"),
-            "censored": d.get("censored"),
-            "interventions": d.get("interventions"),
-            "mean_V": d.get("mean_V"),
-            "max_V": d.get("max_V"),
-            "cumulative_instability": d.get("cumulative_instability"),
-        })
-
     return pd.DataFrame(rows)
 
 
@@ -268,14 +276,22 @@ def compare_controllers(
 
     # Bootstrap diffs vs baseline on per-trial lifetimes (uncensored treated as observed, censored at max_turns)
     baseline = trials_df[(trials_df["controller"] == controllers[0]) & (trials_df["error"] == "")]
-    baseline_times = baseline["failure_turn"].to_numpy(dtype=float)
+    def get_observed_times(df):
+        return np.where(
+            df["censored"].values,
+            df["max_turns"].values,
+            df["failure_turn"].values
+        )
+
+    baseline_times = get_observed_times(baseline)
+
 
     print("\n==============================")
     print("Bootstrap diffs vs Baseline")
     print("==============================")
     for ctrl in controllers[1:]:
         sub = trials_df[(trials_df["controller"] == ctrl) & (trials_df["error"] == "")]
-        cur_times = sub["failure_turn"].to_numpy(dtype=float)
+        cur_times = get_observed_times(sub)
 
         stats = bootstrap_diff(cur_times, baseline_times, n=bootstrap_n, seed=42)
         print(f"\n{ctrl} vs {controllers[0]} (failure_turn):")

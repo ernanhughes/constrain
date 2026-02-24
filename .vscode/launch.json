@@ -49,5 +49,16 @@
             "args": [
             ]
         },
+
+        {
+            "name": "experiment_survival_compare",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}\\venv\\Scripts\\python.exe", // Linux/macOS
+            "module": "constrain.experiments.experiment_survival_compare",
+            "args": [
+            ]
+        },
+        
     ]
 }

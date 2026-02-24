@@ -1,27 +1,30 @@
 # constrain/experiments/recovery_experiment.py
 from __future__ import annotations
+
 import copy
 import json
 import logging
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-from constrain.data.memory import Memory
-from constrain.data.schemas.recovery_experiment import RecoveryExperimentDTO  # Fixed: single import
-from constrain.energy.gate import VerifiabilityGate
-from constrain.energy.utils.text_utils import split_into_sentences
-from constrain.reasoning_state import ReasoningState
-from constrain.model import call_model
 from constrain.config import get_config
+from constrain.data.memory import Memory
+from constrain.data.schemas.recovery_experiment import \
+    RecoveryExperimentDTO  # Fixed: single import
 from constrain.energy.embedding.hf_embedder import HFEmbedder
-from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
+from constrain.energy.embedding.sqlite_embedding_backend import \
+    SQLiteEmbeddingBackend
+from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
+from constrain.energy.utils.text_utils import split_into_sentences
+from constrain.model import call_model
+from constrain.reasoning_state import ReasoningState
 
 logger = logging.getLogger(__name__)
 

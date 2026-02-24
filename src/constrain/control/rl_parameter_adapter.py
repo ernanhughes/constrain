@@ -1,6 +1,8 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
-from typing import Dict, Optional, List, Tuple
+
+from dataclasses import asdict, dataclass
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
 try:

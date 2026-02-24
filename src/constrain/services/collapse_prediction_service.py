@@ -2,6 +2,7 @@
 Service for discovering predictive signals of intervention-triggered collapse.
 """
 from __future__ import annotations
+
 import json
 import logging
 import time
@@ -14,11 +15,13 @@ import xgboost as xgb
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import TimeSeriesSplit
 
-from constrain.data.memory import Memory
+from constrain.analysis.trajectory.statistical_comparison import \
+    BootstrapComparator
+from constrain.analysis.trajectory.trajectory_reconstructor import \
+    TrajectoryReconstructor
 from constrain.config import get_config
+from constrain.data.memory import Memory
 from constrain.data.schemas.collapse_signal import CollapseSignalDTO
-from constrain.analysis.trajectory.trajectory_reconstructor import TrajectoryReconstructor
-from constrain.analysis.trajectory.statistical_comparison import BootstrapComparator
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-import time
 
-from constrain.experiments.base import Experiment, ExperimentResult
 from constrain.core.io.artifact_store import ArtifactStore
 from constrain.core.io.markdown_report import MarkdownReport
+from constrain.experiments.base import Experiment, ExperimentResult
 
 
 @dataclass
@@ -28,7 +29,8 @@ class Paper2AblationExperiment(Experiment):
 
         # NOTE: If your repo already has constrain.experiments.experiment_runner, this will use it.
         # Otherwise, replace this import with your runner module.
-        from constrain.experiments.experiment_runner import ConstrainExperimentRunner, ExperimentConfig
+        from constrain.experiments.experiment_runner import (
+            ConstrainExperimentRunner, ExperimentConfig)
 
         variants = [
             ("M0_baseline", ExperimentConfig(

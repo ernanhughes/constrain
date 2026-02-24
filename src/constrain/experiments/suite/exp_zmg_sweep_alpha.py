@@ -1,12 +1,13 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+
+import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-import time
 
-from constrain.experiments.base import Experiment, ExperimentResult
 from constrain.core.io.artifact_store import ArtifactStore
 from constrain.core.io.markdown_report import MarkdownReport
+from constrain.experiments.base import Experiment, ExperimentResult
 
 
 @dataclass
@@ -28,7 +29,8 @@ class ZMGSweepExperiment(Experiment):
         run_dir = self._make_run_dir(out_root, f"{self.name}_{int(time.time())}")
         store = ArtifactStore(run_dir)
 
-        from constrain.experiments.experiment_runner import ConstrainExperimentRunner, ExperimentConfig
+        from constrain.experiments.experiment_runner import (
+            ConstrainExperimentRunner, ExperimentConfig)
 
         all_rows: List[Dict[str, Any]] = []
         t0 = time.time()

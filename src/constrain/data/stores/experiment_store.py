@@ -4,8 +4,8 @@ import json
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.experiment import ExperimentORM
 from constrain.data.schemas.experiment import ExperimentDTO

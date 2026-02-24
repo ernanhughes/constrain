@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Float, Integer, Text, Boolean
+from sqlalchemy import Boolean, Column, Float, Integer, Text
 
 from constrain.data.base import Base
 

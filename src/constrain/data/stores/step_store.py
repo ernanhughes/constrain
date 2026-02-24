@@ -5,17 +5,13 @@ import math
 from typing import Any, List, Optional
 
 import pandas as pd
-from sqlalchemy import and_, asc, desc, func
+from sqlalchemy import and_, asc, desc, func, select
 from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM
 from constrain.data.orm.step import StepORM
 from constrain.data.schemas.step import StepDTO
 from constrain.data.stores.base_store import BaseSQLAlchemyStore
-
-
-from sqlalchemy import select
-
 from constrain.policy.custom_types import Thresholds
 from constrain.policy.threshold_query import ThresholdQuery
 from constrain.policy.threshold_result import ThresholdResult

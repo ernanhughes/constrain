@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import List, Dict, Optional
 import logging
+from typing import Dict, List, Optional
 
 import pandas as pd
 
+from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.step import StepDTO
-from constrain.config import get_config
 
 logger = logging.getLogger(__name__)
 

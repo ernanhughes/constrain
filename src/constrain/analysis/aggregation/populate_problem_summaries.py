@@ -5,11 +5,12 @@ Run this after each simulation completes, or as a backfill for existing runs.
 """
 
 from sqlalchemy import func
+
+from constrain.config import get_config
 from constrain.data.memory import Memory
+from constrain.data.orm.intervention import InterventionORM
 from constrain.data.orm.problem_summary import ProblemSummaryORM
 from constrain.data.orm.step import StepORM
-from constrain.data.orm.intervention import InterventionORM
-from constrain.config import get_config
 
 
 def compute_problem_summary(memory: Memory, run_id: str, problem_id: int) -> dict:

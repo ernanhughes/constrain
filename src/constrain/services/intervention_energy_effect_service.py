@@ -9,10 +9,12 @@ Provides mechanistic evidence, not just outcome evidence.
 """
 
 from typing import Dict, Tuple
+
 import numpy as np
 import pandas as pd
-from constrain.data.memory import Memory
+
 from constrain.config import get_config
+from constrain.data.memory import Memory
 
 
 class InterventionEnergyEffectService:

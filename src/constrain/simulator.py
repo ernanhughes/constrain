@@ -16,8 +16,8 @@ from typing import Any, Dict, List, Optional
 from constrain.analysis.aggregation.metrics_calculator import MetricsCalculator
 from constrain.config import get_config
 from constrain.data.schemas.step import StepDTO
-from constrain.model import call_model
 from constrain.energy.energy_computer import compute_energy
+from constrain.model import call_model
 from constrain.policy.learned_policy import LearnedPolicy
 
 
@@ -52,7 +52,7 @@ class SingleStepContext:
     def build(*, learned_model_path: Optional[str] = None) -> "SingleStepContext":
         cfg = get_config()
         model_path = learned_model_path or getattr(cfg, "learned_model_path", None)
-        learned = LearnedPolicy(model_path=model_path, threshold=getattr(cfg, "learned_policy_threshold", 0.5)) if model_path else None
+        learned = LearnedPolicy(model_path=model_path, bias=cfg.learned_policy_threshold) if model_path else None
         return SingleStepContext(learned_policy=learned)
 
 
@@ -120,30 +120,47 @@ def run_single_step(
             "grounding_energy": float(metrics.get("grounding_energy", 0.0)),
             "stability_energy": float(metrics.get("stability_energy", 0.0)),
         }
-        _, collapse_prob = ctx.learned_policy.decide(feat)
+        _, preds, _ = ctx.learned_policy.decide(feat)
+    collapse_prob = preds["p_accept"]
 
     # -----------------------------
     # 5) Return StepDTO
     # -----------------------------
     return StepDTO(
         id=None,
-        run_id=-1,
-        problem_id=str(prompt_text)[:64],
+
+        # must be string
+        run_id="survival_eval",
+
+        # must be int
+        problem_id=abs(hash(prompt_text)) % 10_000_000,
+
         iteration=int(feat.get("iteration", 0.0)),
+
         prompt_text=prompt_text,
         reasoning_text=response,
-        accuracy=float(metrics.get("accuracy", float("nan"))),
+
+        gold_answer=gold_answer,
+        extracted_answer=metrics.get("extracted_answer"),
+
         total_energy=float(metrics.get("total_energy", 0.0)),
-        collapse_probability=float(collapse_prob) if collapse_prob is not None else float("nan"),
+        grounding_energy=float(metrics.get("grounding_energy", 0.0)),
+        stability_energy=float(metrics.get("stability_energy", 0.0)),
+
+        accuracy=float(metrics.get("accuracy")) if metrics.get("accuracy") is not None else None,
+        correctness=metrics.get("correctness"),
+
+        temperature=float(temperature),
         policy_action=policy_action,
+
         phase=MetricsCalculator.compute_phase_label(
             float(metrics.get("total_energy", 0.0)),
             cfg.tau_soft,
             cfg.tau_medium,
             cfg.tau_hard,
         ),
+
+        collapse_probability=float(collapse_prob) if collapse_prob is not None else None,
+
         timestamp=float(time()),
-        entropy=float(metrics.get("entropy", 0.0)) if metrics.get("entropy") is not None else None,
-        token_count=float(metrics.get("token_count", 0.0)) if metrics.get("token_count") is not None else None,
-        repetition_score=float(metrics.get("repetition_score", 0.0)) if metrics.get("repetition_score") is not None else None,
     )

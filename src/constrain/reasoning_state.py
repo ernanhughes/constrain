@@ -1,5 +1,6 @@
 from constrain.config import get_config
 
+
 class ReasoningState:
     def __init__(self, prompt, temperature: float | None = None):
         cfg = get_config()

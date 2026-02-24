@@ -11,10 +11,12 @@ Returns distributional statistics, not just prints.
 """
 
 from typing import Dict
+
 import numpy as np
 import pandas as pd
-from constrain.data.memory import Memory
+
 from constrain.config import get_config
+from constrain.data.memory import Memory
 
 
 class InterventionTimingService:

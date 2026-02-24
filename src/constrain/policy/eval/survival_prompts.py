@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 from typing import Dict, List
 
-
 STRESS_TEST_PROMPTS: List[Dict[str, str]] = [
     {
         "name": "progressive_math",

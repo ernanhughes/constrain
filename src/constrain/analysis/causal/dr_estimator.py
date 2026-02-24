@@ -1,8 +1,9 @@
 # analysis/causal/dr_estimator.py
 
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any, Dict
 
 import numpy as np
 from sklearn.model_selection import KFold

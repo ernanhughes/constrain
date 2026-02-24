@@ -9,8 +9,10 @@ This replaces disruptive hard resets with stabilizing control.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
+
 from constrain.config import get_config
 
 

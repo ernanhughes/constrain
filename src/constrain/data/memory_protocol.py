@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
-
-
 if TYPE_CHECKING:
     from constrain.data.stores.calibration_store import CalibrationStore
     from constrain.data.stores.collapse_signal_store import CollapseSignalStore
@@ -13,10 +11,12 @@ if TYPE_CHECKING:
     from constrain.data.stores.experiment_store import ExperimentStore
     from constrain.data.stores.intervention_store import InterventionStore
     from constrain.data.stores.metric_store import MetricStore
-    from constrain.data.stores.policy_evaluation_store import PolicyEvaluationStore
+    from constrain.data.stores.policy_evaluation_store import \
+        PolicyEvaluationStore
     from constrain.data.stores.policy_event_store import PolicyEventStore
     from constrain.data.stores.problem_summary_store import ProblemSummaryStore
-    from constrain.data.stores.recovery_experiment_store import RecoveryExperimentStore
+    from constrain.data.stores.recovery_experiment_store import \
+        RecoveryExperimentStore
     from constrain.data.stores.run_store import RunStore
     from constrain.data.stores.signal_discovery_store import \
         SignalDiscoveryStore

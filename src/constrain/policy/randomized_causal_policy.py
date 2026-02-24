@@ -8,9 +8,11 @@ When risk is high, randomize action to create:
 This enables clean causal effect estimation.
 """
 
+from typing import Dict, Optional, Tuple
+
 import joblib
 import numpy as np
-from typing import Dict, Tuple, Optional
+
 from constrain.config import get_config
 
 

@@ -1,22 +1,22 @@
 # constrain/experiments/recovery_experiment.py
 from __future__ import annotations
+
 import copy
 import json
-import numpy as np
-from typing import List, Dict, Any
-
-from constrain.data.memory import Memory
-from constrain.energy.gate import VerifiabilityGate
-from constrain.reasoning_state import ReasoningState
-from constrain.model import call_model
-
 import logging
-from typing import Optional
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 from constrain.config import get_config
+from constrain.data.memory import Memory
 from constrain.energy.embedding.hf_embedder import HFEmbedder
-from constrain.energy.embedding.sqlite_embedding_backend import SQLiteEmbeddingBackend
+from constrain.energy.embedding.sqlite_embedding_backend import \
+    SQLiteEmbeddingBackend
+from constrain.energy.gate import VerifiabilityGate
 from constrain.energy.geometry.claim_evidence import ClaimEvidenceGeometry
+from constrain.model import call_model
+from constrain.reasoning_state import ReasoningState
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

@@ -1,4 +1,5 @@
 import pandas as pd
+
 from .regime_collapse_detector import RegimeCollapseDetector
 
 
@@ -35,10 +36,10 @@ class SurvivalAnalyzer:
             )
 
             if t_event is None:
-                time = len(group)
+                time = int(group["iteration"].max()) + 1
                 event = 0
             else:
-                time = t_event
+                time = int(t_event)
                 event = 1
 
             rows.append({

@@ -1,8 +1,11 @@
 # constrain/policy/exploration_wrapper.py
 
-import numpy as np
 from dataclasses import dataclass
+
+import numpy as np
+
 from .custom_types import Policy, PolicyDecision
+
 
 @dataclass
 class ExplorationWrapper:

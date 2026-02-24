@@ -1,11 +1,15 @@
 # constrain/data/stores/collapse_signal_store.py
 from __future__ import annotations
-from typing import Any, Optional, List
-from sqlalchemy.orm import sessionmaker
+
+from typing import Any, List, Optional
+
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
+
 from constrain.data.orm.collapse_signal import CollapseSignalORM
 from constrain.data.schemas.collapse_signal import CollapseSignalDTO
 from constrain.data.stores.base_store import BaseSQLAlchemyStore
+
 
 class CollapseSignalStore(BaseSQLAlchemyStore[CollapseSignalDTO]):
     orm_model = CollapseSignalORM

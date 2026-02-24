@@ -1,7 +1,9 @@
 # constrain/data/schemas/collapse_signal.py
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator, field_serializer
 import json
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
+
 
 class CollapseSignalDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")

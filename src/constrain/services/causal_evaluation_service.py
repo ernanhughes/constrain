@@ -2,10 +2,11 @@
 Service for evaluating causal effects of interventions in runs.
 """
 import numpy as np
-from sklearn.model_selection import KFold
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import GradientBoostingRegressor
 import pandas as pd
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import KFold
+
 
 class DoublyRobustEstimator:
 

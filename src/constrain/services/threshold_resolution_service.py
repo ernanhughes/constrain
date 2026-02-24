@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+
 from constrain.policy.custom_types import Thresholds
+
 
 @dataclass
 class ThresholdResolutionService:

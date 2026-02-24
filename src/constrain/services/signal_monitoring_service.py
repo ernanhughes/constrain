@@ -1,5 +1,7 @@
-from constrain.services.rolling_monitor import RollingSignalMonitor
 import pandas as pd
+
+from constrain.services.rolling_monitor import RollingSignalMonitor
+
 
 class SignalMonitoringService:
 

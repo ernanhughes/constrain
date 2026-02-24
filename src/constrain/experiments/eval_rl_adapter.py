@@ -1,14 +1,17 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
-from typing import Optional, List, Tuple, Any, Dict
+
 import math
 import time
 from collections import deque
+from dataclasses import asdict, dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
-from constrain.control.rl_parameter_adapter import RLParameterAdapter, AdapterObservation, AdapterAction
+from constrain.control.rl_parameter_adapter import (AdapterAction,
+                                                    AdapterObservation,
+                                                    RLParameterAdapter)
 
 
 @dataclass

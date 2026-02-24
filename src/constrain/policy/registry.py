@@ -6,29 +6,19 @@ from dataclasses import dataclass
 from typing import Optional
 
 from constrain.config import get_config
+from constrain.policy.custom_types import Policy
+from constrain.policy.learned_policy import LearnedPolicy
+from constrain.policy.policies import (AggressiveRevertPolicy,
+                                       BaselineAcceptPolicy,
+                                       GeometryBandPolicy, HardResetPolicy,
+                                       LearnedPolicyWrapper, MediumResetPolicy,
+                                       RandomPolicy, RevertCoolPolicy,
+                                       SimpleRevertPolicy,
+                                       SoftInterventionPolicyWrapper)
 from constrain.policy.policy_config import PolicyConfig
 from constrain.policy.policy_params import PolicyParams
-from constrain.policy.custom_types import Policy
-
-from constrain.policy.policies import (
-    BaselineAcceptPolicy,
-    SimpleRevertPolicy,
-    RevertCoolPolicy,
-    AggressiveRevertPolicy,
-    HardResetPolicy,
-    MediumResetPolicy,
-    RandomPolicy,
-    GeometryBandPolicy,
-    LearnedPolicyWrapper,
-    SoftInterventionPolicyWrapper,
-)
-
 from constrain.policy.soft_intervention_engine import (
-    SoftInterventionEngine,
-    RandomizedSoftInterventionPolicy,
-)
-
-from constrain.policy.learned_policy import LearnedPolicy
+    RandomizedSoftInterventionPolicy, SoftInterventionEngine)
 
 
 @dataclass
@@ -73,7 +63,7 @@ class PolicyRegistry:
 
             learned_model = LearnedPolicy(
                 model_path=cfg.learned_model_path,
-                threshold=cfg.learned_policy_threshold,
+                bias=cfg.learned_policy_threshold,
             )
 
         registry = PolicyRegistry(
@@ -139,21 +129,21 @@ class PolicyRegistry:
                 shadow=self.learned_shadow,
             )
 
-            if policy_id == 100:  # Soft Intervention (deterministic)
-                engine = SoftInterventionEngine()
-                return SoftInterventionPolicyWrapper(
-                    params=params,
-                    engine=engine,
-                    shadow=False,
-                )
+        if policy_id == 100:  # Soft Intervention (deterministic)
+            engine = SoftInterventionEngine()
+            return SoftInterventionPolicyWrapper(
+                params=params,
+                engine=engine,
+                shadow=False,
+            )
 
-            if policy_id == 101:  # Randomized Soft Intervention (for causal data)
-                engine = SoftInterventionEngine()
-                return SoftInterventionPolicyWrapper(
-                    params=params,
-                    engine=engine,
-                    shadow=False,
-                    randomized=True,
-                    randomization_rate=0.5,
-                )
+        if policy_id == 101:  # Randomized Soft Intervention (for causal data)
+            engine = SoftInterventionEngine()
+            return SoftInterventionPolicyWrapper(
+                params=params,
+                engine=engine,
+                shadow=False,
+                randomized=True,
+                randomization_rate=0.5,
+            )
         raise ValueError(f"Unknown policy_id: {policy_id}")

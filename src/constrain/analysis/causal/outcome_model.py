@@ -1,6 +1,7 @@
 # analysis/causal/outcome_model.py
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Tuple
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import desc
+from sqlalchemy.orm import sessionmaker
 
 from constrain.data.orm.run import RunORM
 from constrain.data.schemas.run import RunDTO

@@ -3,18 +3,18 @@ Service for evaluating policy intervention effectiveness.
 """
 from __future__ import annotations
 
-import time
-from typing import List, Dict, Optional, Tuple
-from dataclasses import dataclass
 import logging
+import time
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from constrain.config import get_config
 from constrain.data.memory import Memory
 from constrain.data.schemas.policy_evaluation import PolicyEvaluationDTO
 from constrain.data.schemas.step import StepDTO
-from constrain.config import get_config
 
 logger = logging.getLogger(__name__)
 
